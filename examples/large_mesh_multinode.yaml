@@ -1,0 +1,58 @@
+# Large mesh + multi-node config.
+#
+# Targets multi-node MPI deployment (4 nodes x 4 GPUs = 16-way wavelength
+# parallelism). Use with slurm_scripts/multi_node_4.slurm or
+# pbs_scripts/multi_node_4.pbs:
+#
+#   sbatch --export=CONFIG=examples/large_mesh_multinode.yaml \
+#          slurm_scripts/multi_node_4.slurm
+#
+# Mesh density: refine=3 + n_per_edge=24 -> ~6336 faces.
+# 100 wavelengths split as 25 per node -> 6-7 wl per GPU.
+
+structure:
+  type: dimer_cube
+  edge: 47.0
+  gap: 0.6
+  n_per_edge: 24
+  e: 0.2
+  refine: 3
+  interp: curv
+
+simulation:
+  type: ret
+  excitation: planewave
+  enei_min: 500
+  enei_max: 1000
+  n_wavelengths: 100
+  polarizations:
+    - [1, 0, 0]
+    - [0, 1, 0]
+  propagation_dirs:
+    - [0, 0, 1]
+    - [0, 0, 1]
+  interp: curv
+
+materials:
+  medium: water
+  particle: gold
+
+compute:
+  n_workers: 1
+  n_threads: 4
+  n_gpus_per_worker: 4
+  multi_node: true
+  hmode: dense
+
+output:
+  dir: ./results
+  name: large_mesh_multinode
+  formats:
+    - npz
+    - json
+    - png
+  save_plots: true
+
+postprocess:
+  spectrum_xaxis: energy
+  run_eigenmode_analysis: false
