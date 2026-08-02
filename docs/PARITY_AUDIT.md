@@ -1,218 +1,243 @@
 # Feature Parity Audit: mnpbem_simulation (MATLAB) vs pymnpbem_simulation
 
-mnpbem_simulation 의 MATLAB-based wrapper 와 pymnpbem_simulation (pure Python port)
-간 기능 비교 표.
+This document compares the feature coverage of the MATLAB-based
+`mnpbem_simulation` wrapper and the pure-Python `pymnpbem_simulation` port.
 
-상태:
-- `OK` — pymnpbem 에 동등 / 더 나은 구현 존재
-- `partial` — 일부 기능만 존재, 보강 필요
-- `TODO` — 누락 (구현 후보)
-- `skip` — MATLAB-only 의존 (port 불가) 또는 의도적 미포함
+Status:
 
-우선순위:
-- `H` (high) — Au dimer / Au@Ag dimer / agg sphere / rod 시뮬에 직접 영향
-- `M` (medium) — 일반 plasmonic 시뮬에 자주 사용
-- `L` (low) — 특수 / matlab-specific
+- `OK`: An equivalent or better implementation exists in pymnpbem
+- `partial`: Only part of the functionality exists and additional work is needed
+- `TODO`: Missing and considered a candidate for implementation
+- `skip`: MATLAB-only dependency that cannot be ported, or intentionally omitted
 
-## 1. Postprocess — Visualization
+Priority:
 
-| 기능 | mnpbem (MATLAB wrapper) | pymnpbem | 상태 | 우선순위 |
+- `H` (high): Directly affects Au dimer, Au@Ag dimer, aggregate sphere, and rod simulations
+- `M` (medium): Frequently used in general plasmonic simulations
+- `L` (low): Specialized or MATLAB-specific
+
+## 1. Postprocess - Visualization
+
+| Feature | mnpbem (MATLAB wrapper) | pymnpbem | Status | Priority |
 |---|---|---|---|---|
-| Spectrum plot (per polarization) | visualizer.py:plot_spectrum | postprocess/plot.py:plot_spectrum | OK (Series A) | H |
-| Spectrum xaxis = energy (eV) toggle | plot_spectrum (xaxis_unit) | plot.py:plot_spectrum(xaxis='energy') | OK (Series A) | H |
-| Polarization comparison (ext/sca/abs 3 plots) | plot_polarization_comparison | plot.py:plot_polarization_comparison | OK (Series A) | H |
-| Unpolarized spectrum (FDTD-style 2-pol average) | plot_unpolarized_spectrum + SpectrumAnalyzer.calculate | spectrum.py:check_unpolarized_conditions + calculate_unpolarized_spectrum | OK (Series A) | H |
-| Comparison plot (pol vs unpolarized) | _plot_spectrum_comparison_with_unpolarized | plot.py:plot_polarization_vs_unpolarized | OK (Series A) | H |
-| All-in-one comparison (3 subplots) | comparison_all_unpolarized | plot_polarization_vs_unpolarized (4th file) | OK (Series A) | M |
-| Field plots (enhancement, 2D slice) | plot_fields, _plot_field_enhancement | plot_field.py:plot_field_2d_slice | OK | H |
-| Field intensity plots (LogNorm + percentile) | _plot_field_intensity | plot_field.py:plot_field_intensity_2d | OK (Series D) | M |
-| Field vector plots (2D quiver) | _plot_field_vectors | plot_field.py:plot_field_vectors_2d | OK (Series D) | M |
-| Field separate internal/external | plot_field_separate_internal_external | (없음) | TODO | M |
-| Field comparison (overlay all pols) | _plot_field_comparison | (없음) | TODO | M |
-| Field overlay (all pols on single plot) | _plot_field_overlay | (없음) | TODO | L |
-| Unpolarized fields | plot_unpolarized_fields | (없음) | TODO | M |
-| Material boundary draw on field plot | _draw_material_boundary | (없음) | TODO | M |
-| Surface charge 3D plot | _plot_surface_charge_3d | plot_surface_charge.py:plot_surface_charge_3d | OK | - |
-| Surface charge 2D 8-views | _plot_surface_charge_2d_8views | plot_surface_charge_2d_8views | OK | - |
-| Surface charge phase analysis (Re/Im/abs/arg) | plot_surface_charge_phase_analysis | plot_surface_charge_phase | OK | - |
-| Hotspots 3D | (없음 — pyMNPBEM 측 별도) | plot_hotspots_3d | OK | - |
-| Near-field decay | (없음) | plot_near_field_decay | OK | - |
-| Eigenmode plots (mode patterns grid) | _plot_mode_patterns_grid | plot_eigenmode.py:plot_mode_patterns | OK (Series F) | M |
-| Eigenmode value spectrum (complex plane + bar) | (없음 — 직접) | plot_eigenmode.py:plot_eigenvalue_spectrum | OK (Series F) | M |
-| Eigenmode magnitude spectra (vs wl) | _plot_magnitude_spectra | (없음 — wl sweep 자료 미저장) | TODO | L |
-| Eigenmode phase spectra (vs wl) | _plot_phase_spectra | (없음 — 동상) | TODO | L |
-| Eigenmode delta phi comparison | _plot_delta_phi_comparison | (없음) | TODO | L |
-| SVD decay plot | (없음) | plot_eigenmode.py:plot_singular_value_decay | OK (Series F) | M |
-| Multipole bar chart (power per l) | (간접 only) | plot.py:plot_multipole_bar | OK (Series D) | M |
-| Multipole character table | _plot_multipole_character_table | (없음 — character classification 미포팅) | TODO | L |
-| Fano fit plot (data + fit + residual + annotations) | _plot_fano_fit | plot.py:plot_fano_fit | OK (Series D) | M |
-| Cross-validation summary | _plot_cross_validation_summary | (없음) | TODO | L |
+| Spectrum plot per polarization | `visualizer.py:plot_spectrum` | `postprocess/plot.py:plot_spectrum` | OK (Series A) | H |
+| Spectrum x-axis energy (eV) toggle | `plot_spectrum` (`xaxis_unit`) | `plot.py:plot_spectrum(xaxis='energy')` | OK (Series A) | H |
+| Polarization comparison with ext/sca/abs in three plots | `plot_polarization_comparison` | `plot.py:plot_polarization_comparison` | OK (Series A) | H |
+| Unpolarized spectrum using FDTD-style two-polarization averaging | `plot_unpolarized_spectrum` + `SpectrumAnalyzer.calculate` | `spectrum.py:check_unpolarized_conditions` + `calculate_unpolarized_spectrum` | OK (Series A) | H |
+| Comparison plot, polarized vs unpolarized | `_plot_spectrum_comparison_with_unpolarized` | `plot.py:plot_polarization_vs_unpolarized` | OK (Series A) | H |
+| All-in-one comparison with three subplots | `comparison_all_unpolarized` | `plot_polarization_vs_unpolarized` as the fourth output file | OK (Series A) | M |
+| Field plots, enhancement and 2D slice | `plot_fields`, `_plot_field_enhancement` | `plot_field.py:plot_field_2d_slice` | OK | H |
+| Field intensity plots with LogNorm and percentile scaling | `_plot_field_intensity` | `plot_field.py:plot_field_intensity_2d` | OK (Series D) | M |
+| Field vector plots with 2D quiver | `_plot_field_vectors` | `plot_field.py:plot_field_vectors_2d` | OK (Series D) | M |
+| Separate internal and external field plots | `plot_field_separate_internal_external` | Missing | TODO | M |
+| Field comparison with all polarizations overlaid | `_plot_field_comparison` | Missing | TODO | M |
+| Field overlay with all polarizations on one plot | `_plot_field_overlay` | Missing | TODO | L |
+| Unpolarized fields | `plot_unpolarized_fields` | Missing | TODO | M |
+| Material boundary on field plots | `_draw_material_boundary` | Missing | TODO | M |
+| Surface-charge 3D plot | `_plot_surface_charge_3d` | `plot_surface_charge.py:plot_surface_charge_3d` | OK | - |
+| Surface-charge 2D eight-view plot | `_plot_surface_charge_2d_8views` | `plot_surface_charge_2d_8views` | OK | - |
+| Surface-charge phase analysis, Re/Im/abs/arg | `plot_surface_charge_phase_analysis` | `plot_surface_charge_phase` | OK | - |
+| Hotspots in 3D | Missing, available separately in pyMNPBEM | `plot_hotspots_3d` | OK | - |
+| Near-field decay | Missing | `plot_near_field_decay` | OK | - |
+| Eigenmode plots as a mode-pattern grid | `_plot_mode_patterns_grid` | `plot_eigenmode.py:plot_mode_patterns` | OK (Series F) | M |
+| Eigenvalue spectrum with complex-plane and bar plots | Missing, implemented directly | `plot_eigenmode.py:plot_eigenvalue_spectrum` | OK (Series F) | M |
+| Eigenmode magnitude spectra vs wavelength | `_plot_magnitude_spectra` | Missing because wavelength-sweep data are not saved | TODO | L |
+| Eigenmode phase spectra vs wavelength | `_plot_phase_spectra` | Missing for the same reason | TODO | L |
+| Eigenmode delta-phi comparison | `_plot_delta_phi_comparison` | Missing | TODO | L |
+| SVD decay plot | Missing | `plot_eigenmode.py:plot_singular_value_decay` | OK (Series F) | M |
+| Multipole bar chart, power per l | Indirect only | `plot.py:plot_multipole_bar` | OK (Series D) | M |
+| Multipole character table | `_plot_multipole_character_table` | Missing because character classification has not been ported | TODO | L |
+| Fano-fit plot with data, fit, residual, and annotations | `_plot_fano_fit` | `plot.py:plot_fano_fit` | OK (Series D) | M |
+| Cross-validation summary | `_plot_cross_validation_summary` | Missing | TODO | L |
 
-## 2. Postprocess — Analysis
+## 2. Postprocess - Analysis
 
-| 기능 | mnpbem | pymnpbem | 상태 | 우선순위 |
+| Feature | mnpbem | pymnpbem | Status | Priority |
 |---|---|---|---|---|
-| Peak finder (scipy.signal.find_peaks) | SpectrumAnalyzer._find_peaks | spectrum.py:find_spectrum_peaks (per-pol multi-peak list) | OK (Series A) | H |
-| FWHM 계산 | _calculate_fwhm | spectrum.py:_compute_fwhm | OK | - |
-| Multi-peak detection | _find_peaks (prominence) | spectrum.py:find_spectrum_peaks (sorted by amp, prominence) | OK (Series A) | M |
-| Enhancement factors (pol1/pol2 ratio) | _calculate_enhancement | spectrum.py:compute_enhancement_factors (all pairs) | OK (Series A) | M |
-| Avg/max cross sections | analyze (avg_*, max_*) | analyze_spectrum (avg_*, max_*) | OK (Series A) | M |
-| Unpolarized check (orthogonal pols) | _check_unpolarized_conditions | spectrum.py:check_unpolarized_conditions | OK (Series A) | H |
-| Unpolarized spectrum compute | _calculate_unpolarized_spectrum | spectrum.py:calculate_unpolarized_spectrum | OK (Series A) | H |
-| Hotspot finder | FieldAnalyzer._find_hotspots | field_analyzer.py:hotspot_location | OK | H |
-| High-field region analysis (n_pts, area, vol per threshold) | _analyze_high_field_regions | field_analyzer.py:high_field_regions | OK (Series C) | M |
-| Near-field integration | calculate_near_field_integration | (없음 — 복잡한 BEM-aware 코드, port 안 함) | TODO | L |
-| Near-field decay | (없음) | field_analyzer.py:near_field_decay | OK | - |
-| Field statistics (max/mean/median/percentiles) | _calculate_statistics | field_analyzer.py:field_statistics | OK (Series C) | M |
-| Edge artifact detection | edge_filter.py:find_edge_artifacts | (없음 — near-field integ 의존) | TODO | L |
-| Geometry cross-section | geometry_cross_section.py:GeometryCrossSection | (없음 — near-field integ 의존) | TODO | L |
-| QS eigenmode analysis | QSEigenAnalyzer (eigenmode_analyzer.py) | postprocess/eigenmode.py:qs_eigenmodes | OK | - |
-| SVD decomposition | SVDAnalyzer | eigenmode.py:svd_decomposition | OK | - |
-| Multipole projection | MultipoleAnalyzer | postprocess/multipole.py | OK | - |
-| Retarded eigenmode | RetardedEigenAnalyzer | eigenmode.py:retarded_eigenmodes | OK | - |
-| Mode comparator (cross-validate) | ModeComparator | (없음) | TODO | L |
-| Fano fit | FanoFitter | fano_fit.py:fano_fit | OK | - |
-| Multi-peak Fano | (없음) | multi_fano_fit | OK | - |
-| Core-shell separator | CoreShellSeparator | postprocess/core_shell.py:CoreShellSeparator | OK (Series B) | H (Au@Ag) |
+| Peak finder using `scipy.signal.find_peaks` | `SpectrumAnalyzer._find_peaks` | `spectrum.py:find_spectrum_peaks`, per-polarization multi-peak list | OK (Series A) | H |
+| FWHM calculation | `_calculate_fwhm` | `spectrum.py:_compute_fwhm` | OK | - |
+| Multi-peak detection | `_find_peaks` using prominence | `spectrum.py:find_spectrum_peaks`, sorted by amplitude and prominence | OK (Series A) | M |
+| Enhancement factors as pol1/pol2 ratios | `_calculate_enhancement` | `spectrum.py:compute_enhancement_factors`, all pairs | OK (Series A) | M |
+| Average and maximum cross sections | `analyze` with `avg_*`, `max_*` | `analyze_spectrum` with `avg_*`, `max_*` | OK (Series A) | M |
+| Unpolarized check for orthogonal polarizations | `_check_unpolarized_conditions` | `spectrum.py:check_unpolarized_conditions` | OK (Series A) | H |
+| Unpolarized-spectrum calculation | `_calculate_unpolarized_spectrum` | `spectrum.py:calculate_unpolarized_spectrum` | OK (Series A) | H |
+| Hotspot finder | `FieldAnalyzer._find_hotspots` | `field_analyzer.py:hotspot_location` | OK | H |
+| High-field region analysis with point count, area, and volume by threshold | `_analyze_high_field_regions` | `field_analyzer.py:high_field_regions` | OK (Series C) | M |
+| Near-field integration | `calculate_near_field_integration` | Missing because the BEM-aware implementation is complex and was not ported | TODO | L |
+| Near-field decay | Missing | `field_analyzer.py:near_field_decay` | OK | - |
+| Field statistics, including max, mean, median, and percentiles | `_calculate_statistics` | `field_analyzer.py:field_statistics` | OK (Series C) | M |
+| Edge-artifact detection | `edge_filter.py:find_edge_artifacts` | Missing because it depends on near-field integration | TODO | L |
+| Geometry cross section | `geometry_cross_section.py:GeometryCrossSection` | Missing because it depends on near-field integration | TODO | L |
+| QS eigenmode analysis | `QSEigenAnalyzer` in `eigenmode_analyzer.py` | `postprocess/eigenmode.py:qs_eigenmodes` | OK | - |
+| SVD decomposition | `SVDAnalyzer` | `eigenmode.py:svd_decomposition` | OK | - |
+| Multipole projection | `MultipoleAnalyzer` | `postprocess/multipole.py` | OK | - |
+| Retarded eigenmode | `RetardedEigenAnalyzer` | `eigenmode.py:retarded_eigenmodes` | OK | - |
+| Mode comparator for cross-validation | `ModeComparator` | Missing | TODO | L |
+| Fano fit | `FanoFitter` | `fano_fit.py:fano_fit` | OK | - |
+| Multi-peak Fano fit | Missing | `multi_fano_fit` | OK | - |
+| Core-shell separator | `CoreShellSeparator` | `postprocess/core_shell.py:CoreShellSeparator` | OK (Series B) | H (Au@Ag) |
 
 ## 3. Simulation Runners
 
-| 기능 | mnpbem | pymnpbem | 상태 | 우선순위 |
+| Feature | mnpbem | pymnpbem | Status | Priority |
 |---|---|---|---|---|
-| planewave + ret | matlab template | planewave_ret.py | OK | - |
-| planewave + stat | matlab | planewave_stat.py | OK | - |
-| planewave + ret + layer (substrate) | matlab | planewave_ret_layer.py | OK | - |
-| planewave + ret + iter | matlab | planewave_ret_iter.py | OK | - |
-| planewave + stat + iter | matlab | planewave_stat_iter.py | OK | - |
-| planewave + ret + layer + iter | matlab | planewave_ret_layer_iter.py | OK | - |
-| planewave + ret + mirror | matlab | planewave_ret_mirror.py | OK | - |
-| planewave + stat + layer | matlab | (없음) | TODO | L |
-| dipole + ret | matlab | dipole_ret.py | OK | - |
-| dipole + stat | matlab | dipole_stat.py | OK | - |
-| dipole + ret + layer | matlab | dipole_ret_layer.py | OK | - |
-| dipole + ret + iter | matlab | (없음) | TODO | L |
-| dipole + stat + iter | matlab | (없음) | TODO | L |
-| eels + ret | matlab | eels_ret.py | OK | - |
-| eels + stat | matlab | eels_stat.py | OK | - |
-| eels + ret + layer | matlab | eels_ret_layer.py | OK | - |
-| nonlocal eps | matlab | (with_nonlocal wrapper) | partial | M |
-| Field calculation grid | matlab | field_calculator.py + grid_builder.py | OK | - |
+| Plane wave + retarded | MATLAB template | `planewave_ret.py` | OK | - |
+| Plane wave + quasistatic | MATLAB | `planewave_stat.py` | OK | - |
+| Plane wave + retarded + layer substrate | MATLAB | `planewave_ret_layer.py` | OK | - |
+| Plane wave + retarded + iterative | MATLAB | `planewave_ret_iter.py` | OK | - |
+| Plane wave + quasistatic + iterative | MATLAB | `planewave_stat_iter.py` | OK | - |
+| Plane wave + retarded + layer + iterative | MATLAB | `planewave_ret_layer_iter.py` | OK | - |
+| Plane wave + retarded + mirror | MATLAB | `planewave_ret_mirror.py` | OK | - |
+| Plane wave + quasistatic + layer | MATLAB | Missing | TODO | L |
+| Dipole + retarded | MATLAB | `dipole_ret.py` | OK | - |
+| Dipole + quasistatic | MATLAB | `dipole_stat.py` | OK | - |
+| Dipole + retarded + layer | MATLAB | `dipole_ret_layer.py` | OK | - |
+| Dipole + retarded + iterative | MATLAB | Missing | TODO | L |
+| Dipole + quasistatic + iterative | MATLAB | Missing | TODO | L |
+| EELS + retarded | MATLAB | `eels_ret.py` | OK | - |
+| EELS + quasistatic | MATLAB | `eels_stat.py` | OK | - |
+| EELS + retarded + layer | MATLAB | `eels_ret_layer.py` | OK | - |
+| Nonlocal permittivity | MATLAB | `with_nonlocal` wrapper | partial | M |
+| Field-calculation grid | MATLAB | `field_calculator.py` + `grid_builder.py` | OK | - |
 
 ## 4. Structures (Geometry Builders)
 
-| 기능 | mnpbem | pymnpbem | 상태 | 우선순위 |
+| Feature | mnpbem | pymnpbem | Status | Priority |
 |---|---|---|---|---|
-| sphere | matlab trisphere | sphere.py | OK | - |
-| cube | matlab tricube | cube.py | OK | - |
-| rod | matlab trirod | rod.py | OK | - |
-| ellipsoid | matlab triellipsoid | ellipsoid.py | OK | - |
-| triangle | matlab tritriangle | triangle.py | OK | - |
-| dimer (sphere/cube) | matlab | dimer_sphere.py + dimer_cube.py | OK | - |
-| core_shell sphere | matlab | core_shell_sphere.py | OK | - |
-| core_shell cube | matlab | core_shell_cube.py | OK | - |
-| core_shell rod | matlab | core_shell_rod.py | OK | - |
-| dimer_core_shell_cube (Au@Ag dimer) | matlab | dimer_core_shell_cube.py | OK | - |
-| advanced_monomer_cube | matlab | advanced_monomer_cube.py | OK | - |
-| advanced_dimer_cube | matlab | advanced_dimer_cube.py | OK | - |
-| connected_dimer_cube | matlab | connected_dimer_cube.py | OK | - |
-| sphere_cluster (aggregate) | matlab | sphere_cluster.py | OK | - |
-| from_shape (.mat / .stl import) | matlab geometry_generator | from_shape.py | OK | - |
-| with_substrate | matlab | with_substrate.py | OK | - |
-| with_mirror | matlab | with_mirror.py | OK | - |
-| with_nonlocal | matlab | with_nonlocal.py | OK | - |
-| Cylinder rod (별도 builder) | matlab | rod.py (cylinder shape supported) | OK | - |
+| Sphere | MATLAB `trisphere` | `sphere.py` | OK | - |
+| Cube | MATLAB `tricube` | `cube.py` | OK | - |
+| Rod | MATLAB `trirod` | `rod.py` | OK | - |
+| Ellipsoid | MATLAB `triellipsoid` | `ellipsoid.py` | OK | - |
+| Triangle | MATLAB `tritriangle` | `triangle.py` | OK | - |
+| Dimer, sphere/cube | MATLAB | `dimer_sphere.py` + `dimer_cube.py` | OK | - |
+| Core-shell sphere | MATLAB | `core_shell_sphere.py` | OK | - |
+| Core-shell cube | MATLAB | `core_shell_cube.py` | OK | - |
+| Core-shell rod | MATLAB | `core_shell_rod.py` | OK | - |
+| Core-shell cube dimer, Au@Ag dimer | MATLAB | `dimer_core_shell_cube.py` | OK | - |
+| Advanced monomer cube | MATLAB | `advanced_monomer_cube.py` | OK | - |
+| Advanced dimer cube | MATLAB | `advanced_dimer_cube.py` | OK | - |
+| Connected dimer cube | MATLAB | `connected_dimer_cube.py` | OK | - |
+| Sphere cluster, aggregate | MATLAB | `sphere_cluster.py` | OK | - |
+| Import from shape, `.mat` / `.stl` | MATLAB geometry generator | `from_shape.py` | OK | - |
+| With substrate | MATLAB | `with_substrate.py` | OK | - |
+| With mirror symmetry | MATLAB | `with_mirror.py` | OK | - |
+| With nonlocal correction | MATLAB | `with_nonlocal.py` | OK | - |
+| Cylindrical rod as a separate builder | MATLAB | Cylinder shape supported in `rod.py` | OK | - |
 
 ## 5. Materials
 
-| 기능 | mnpbem | pymnpbem | 상태 | 우선순위 |
+| Feature | mnpbem | pymnpbem | Status | Priority |
 |---|---|---|---|---|
-| Drude / Lorentz / EpsConst | matlab | (mnpbem core 직접 호출) | OK | - |
-| Table-based eps (Johnson&Christy 등) | RefractiveIndexLoader | (mnpbem core 직접 호출) | OK | - |
-| AgCl, dielectric coatings | matlab | (mnpbem core) | OK | - |
-| Nonlocal hydrodynamic Drude | NonlocalGenerator | nonlocal_eps.py:make_hydrodynamic_drude_eps | OK | - |
-| Material auto-detection (metal/dielectric) | material_manager:_is_metal | (없음) | TODO | L |
+| Drude / Lorentz / `EpsConst` | MATLAB | Direct call to mnpbem core | OK | - |
+| Table-based permittivity, including Johnson & Christy | `RefractiveIndexLoader` | Direct call to mnpbem core | OK | - |
+| AgCl and dielectric coatings | MATLAB | mnpbem core | OK | - |
+| Nonlocal hydrodynamic Drude | `NonlocalGenerator` | `nonlocal_eps.py:make_hydrodynamic_drude_eps` | OK | - |
+| Automatic material classification, metal/dielectric | `material_manager:_is_metal` | Missing | TODO | L |
 
 ## 6. CLI / Dispatch / Orchestration
 
-| 기능 | mnpbem | pymnpbem | 상태 | 우선순위 |
+| Feature | mnpbem | pymnpbem | Status | Priority |
 |---|---|---|---|---|
-| Single-node dispatch | matlab | dispatch/single_node.py | OK | - |
-| Multi-GPU per worker | matlab | dispatch/multi_gpu.py | OK | - |
-| Multi-node MPI | matlab | dispatch/mpi_node.py | OK | - |
-| Sweep launcher (4 worker per-GPU) | (없음) | (sweep launcher) | OK | - |
-| --reanalyze (postprocess only) | run_postprocess.py | cli.py --reanalyze | OK | - |
-| --auto compute plan | matlab | cli.py --auto | OK | - |
-| --verbose | matlab | cli.py --verbose | OK | - |
-| --n-wavelengths sub-sample | (없음) | cli.py | OK | - |
-| SLURM scripts | matlab | slurm_scripts/ | OK | - |
-| PBS scripts | matlab | pbs_scripts/ | OK | - |
-| Config snapshot save | matlab | cli.py:save_yaml | OK | - |
-| Run metadata save | matlab | save_run_metadata | OK | - |
-| Config py->yaml migration | (matlab .py format) | migration/py_to_yaml.py | OK | - |
+| Single-node dispatch | MATLAB | `dispatch/single_node.py` | OK | - |
+| Multiple GPUs per worker | MATLAB | `dispatch/multi_gpu.py` | OK | - |
+| Multi-node MPI | MATLAB | `dispatch/mpi_node.py` | OK | - |
+| Sweep launcher with four workers pinned per GPU | Missing | Sweep launcher | OK | - |
+| `--reanalyze`, postprocess only | `run_postprocess.py` | `cli.py --reanalyze` | OK | - |
+| `--auto` compute plan | MATLAB | `cli.py --auto` | OK | - |
+| `--verbose` | MATLAB | `cli.py --verbose` | OK | - |
+| `--n-wavelengths` subsampling | Missing | `cli.py` | OK | - |
+| SLURM scripts | MATLAB | `slurm_scripts/` | OK | - |
+| PBS scripts | MATLAB | `pbs_scripts/` | OK | - |
+| Config snapshot saving | MATLAB | `cli.py:save_yaml` | OK | - |
+| Run metadata saving | MATLAB | `save_run_metadata` | OK | - |
+| Python-config to YAML migration | MATLAB `.py` format | `migration/py_to_yaml.py` | OK | - |
 
 ## 7. Output Formats
 
-| 기능 | mnpbem | pymnpbem | 상태 | 우선순위 |
+| Feature | mnpbem | pymnpbem | Status | Priority |
 |---|---|---|---|---|
-| .npz spectrum | (없음) | io/writer.py | OK | - |
-| .json spectrum_analysis | data_exporter (json) | postprocess (json) | OK | - |
-| .csv spectrum | data_exporter (csv) | postprocess/export.py | OK | - |
-| .txt spectrum (header + per-pol + combined) | data_exporter._save_txt | export.py:export_spectrum_txt | OK (Series C) | M |
-| .txt field data (per pol/wl) | DataExporter._export_single_field | (없음 — 사용자 요청 없음) | TODO | L |
-| .png plot | matlab + visualizer | plot.py 등 | OK | - |
-| .pdf plot | visualizer (plot_format=['png','pdf']) | plot_spectrum 등 plot_format 인자 지원 | OK (Series A) | M |
-| .h5 export | (없음) | export.py:export_h5 | OK | - |
-| .mat export | matlab native | (없음) | skip | - |
-| .eps / .svg | (visualizer 옵션) | (없음) | TODO | L |
+| `.npz` spectrum | Missing | `io/writer.py` | OK | - |
+| `.json` spectrum analysis | `data_exporter` JSON | postprocess JSON | OK | - |
+| `.csv` spectrum | `data_exporter` CSV | `postprocess/export.py` | OK | - |
+| `.txt` spectrum with header, per-polarization, and combined output | `data_exporter._save_txt` | `export.py:export_spectrum_txt` | OK (Series C) | M |
+| `.txt` field data per polarization/wavelength | `DataExporter._export_single_field` | Missing because there has been no user request | TODO | L |
+| `.png` plot | MATLAB + visualizer | `plot.py` and related modules | OK | - |
+| `.pdf` plot | visualizer with `plot_format=['png','pdf']` | `plot_spectrum` and related functions support `plot_format` | OK (Series A) | M |
+| `.h5` export | Missing | `export.py:export_h5` | OK | - |
+| `.mat` export | MATLAB native | Missing | skip | - |
+| `.eps` / `.svg` | Visualizer option | Missing | TODO | L |
 
-## 8. Postprocess Specific Analyses (이미 구현)
+## 8. Postprocess-Specific Analyses Already Implemented
 
-| 기능 | mnpbem | pymnpbem | 상태 | 우선순위 |
+| Feature | mnpbem | pymnpbem | Status | Priority |
 |---|---|---|---|---|
-| QS eigenmodes (Boundary integral 방식) | eigenmode_analyzer.QSEigenAnalyzer | postprocess.eigenmode | OK | - |
-| Retarded eigenmodes | retarded_eigen.RetardedEigenAnalyzer | postprocess.eigenmode.retarded_eigenmodes | OK | - |
-| SVD rank determination | SVDAnalyzer.determine_rank | (없음 in pymnpbem) | TODO | L |
-| Mode classification (dipole/quad/etc) | MultipoleAnalyzer.classify | (없음) | TODO | M |
-| Mode comparator (cross-validation) | ModeComparator | (없음) | TODO | L |
+| QS eigenmodes using the boundary-integral method | `eigenmode_analyzer.QSEigenAnalyzer` | `postprocess.eigenmode` | OK | - |
+| Retarded eigenmodes | `retarded_eigen.RetardedEigenAnalyzer` | `postprocess.eigenmode.retarded_eigenmodes` | OK | - |
+| SVD rank determination | `SVDAnalyzer.determine_rank` | Missing in pymnpbem | TODO | L |
+| Mode classification, dipole/quadrupole/etc. | `MultipoleAnalyzer.classify` | Missing | TODO | M |
+| Mode comparator for cross-validation | `ModeComparator` | Missing | TODO | L |
 
 ---
 
-# 우선순위 요약
+# Priority Summary
 
-## High priority (필수, 사용자 케이스 직접 영향) — Series A/B/C
+## High Priority: Essential and Directly Relevant to User Cases, Series A/B/C
 
-- **Series A (visualization)**: Spectrum xaxis (energy), polarization comparison, unpolarized spectrum + comparison plot
-- **Series B (analysis)**: Multi-peak detection, enhancement factors, unpolarized check
-- **Series C (Au@Ag)**: Core-shell separator (core/shell mask + cutaway plot)
+- **Series A, visualization**:
+  - Spectrum energy-axis support
+  - Polarization comparison
+  - Unpolarized spectrum
+  - Comparison plots
+- **Series B, analysis**:
+  - Multi-peak detection
+  - Enhancement factors
+  - Unpolarized-condition checks
+- **Series C, Au@Ag**:
+  - Core-shell separator with core/shell masks and cutaway plots
 
-## Medium priority (일반 plasmonic 자주 사용) — Series D/E/F
+## Medium Priority: Frequently Used in General Plasmonic Simulations, Series D/E/F
 
-- **Series D (visualization)**: field intensity, field comparison, mode patterns grid, multipole character table, fano fit plot
-- **Series E (output)**: txt spectrum/field exporter, pdf plot
-- **Series F (analysis)**: high-field region analysis, near-field integration, geometry cross-section, fano fit plot, multi-peak detection improvements
+- **Series D, visualization**:
+  - Field intensity
+  - Field comparison
+  - Mode-pattern grids
+  - Multipole character table
+  - Fano-fit plot
+- **Series E, output**:
+  - Text spectrum and field exporters
+  - PDF plots
+- **Series F, analysis**:
+  - High-field region analysis
+  - Near-field integration
+  - Geometry cross section
+  - Fano-fit plot
+  - Improvements to multi-peak detection
 
-## Low priority — Series G
+## Low Priority: Series G
 
-- planewave_stat_layer runner, dipole iterative variants
-- mode comparator, SVD rank, mode classification
-- eps / svg plots
+- `planewave_stat_layer` runner
+- Iterative dipole variants
+- Mode comparator
+- SVD rank determination
+- Mode classification
+- EPS / SVG plots
 
 ---
 
-# 시리즈 실행 계획
+# Series Execution Plan
 
-| 시리즈 | 대상 | 설명 | 파일 |
+| Series | Target | Description | Files |
 |---|---|---|---|
-| A1 | postprocess/plot.py | spectrum xaxis=energy 지원 | plot.py |
-| A2 | postprocess/plot.py | polarization comparison plot | plot.py |
-| A3 | postprocess/spectrum.py | unpolarized 계산 + check | spectrum.py + new |
-| A4 | postprocess/plot.py | unpolarized + comparison plots | plot.py |
-| B1 | postprocess/spectrum.py | multi-peak detection (scipy find_peaks) | spectrum.py |
-| B2 | postprocess/spectrum.py | enhancement factors / avg / max | spectrum.py |
-| C1 | postprocess/core_shell.py | CoreShellSeparator port (cube/rod) | new |
-| D1 | postprocess/plot_field.py | field intensity (없는 경우) + comparison | plot_field.py |
-| D2 | postprocess/plot_eigenmode.py | mode patterns / magnitude / phase | new |
-| D3 | postprocess/plot.py | multipole character bar chart + fano fit plot | plot.py |
-| E1 | postprocess/export.py | txt spectrum / field exporter | export.py |
-| F1 | postprocess/field_analyzer.py | high-field region analysis | field_analyzer.py |
-| F2 | postprocess/geometry_cross_section.py | geometry cross-section util | new |
+| A1 | `postprocess/plot.py` | Add `xaxis='energy'` support for spectra | `plot.py` |
+| A2 | `postprocess/plot.py` | Add polarization-comparison plots | `plot.py` |
+| A3 | `postprocess/spectrum.py` | Add unpolarized calculation and checks | `spectrum.py` + new module |
+| A4 | `postprocess/plot.py` | Add unpolarized and comparison plots | `plot.py` |
+| B1 | `postprocess/spectrum.py` | Add multi-peak detection using SciPy `find_peaks` | `spectrum.py` |
+| B2 | `postprocess/spectrum.py` | Add enhancement factors, averages, and maxima | `spectrum.py` |
+| C1 | `postprocess/core_shell.py` | Port `CoreShellSeparator` for cubes and rods | New module |
+| D1 | `postprocess/plot_field.py` | Add missing field-intensity and comparison plots | `plot_field.py` |
+| D2 | `postprocess/plot_eigenmode.py` | Add mode patterns, magnitude spectra, and phase spectra | New module |
+| D3 | `postprocess/plot.py` | Add multipole-character bar charts and Fano-fit plots | `plot.py` |
+| E1 | `postprocess/export.py` | Add text spectrum and field exporters | `export.py` |
+| F1 | `postprocess/field_analyzer.py` | Add high-field region analysis | `field_analyzer.py` |
+| F2 | `postprocess/geometry_cross_section.py` | Add geometry cross-section utilities | New module |
