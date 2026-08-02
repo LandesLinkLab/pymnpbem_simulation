@@ -1,13 +1,14 @@
-# CLI Guide — `--str-conf` / `--sim-conf` 패턴
+# CLI Guide - `--str-conf` / `--sim-conf` Pattern
 
-이 문서는 `pymnpbem_simulation` 의 새 CLI 사용법과 기존 YAML CLI 와의
-관계를 정리한다. 새 패턴은 `mnpbem_simulation` (MATLAB wrapper) 의
-인터페이스와 동일한 형태로, structure 정의와 simulation 정의를 두 개의
-`.py` config 로 분리한다.
+This document explains the new CLI usage for `pymnpbem_simulation` and its
+relationship to the legacy YAML CLI. The new pattern follows the same
+interface style as `mnpbem_simulation`, the former MATLAB wrapper, by
+separating the structure definition and simulation definition into two
+`.py` config files.
 
-## 1. 두 가지 모드
+## 1. Two Modes
 
-### Mode A — 새 패턴 (권장, mnpbem_simulation 호환)
+### Mode A - New Pattern (Recommended, Compatible with mnpbem_simulation)
 
 ```bash
 python run_simulation.py \
@@ -16,30 +17,32 @@ python run_simulation.py \
     --verbose
 ```
 
-- `--str-conf <path.py>` : structure 정의 (`structure_type`, dimensions,
-  materials, mesh density 등)
-- `--sim-conf <path.py>` : simulation + compute + output 정의
-  (`simulation_type`, `wavelength_range`, `polarizations`,
+- `--str-conf <path.py>`: Structure definition, including `structure_type`,
+  dimensions, materials, mesh density, and related parameters.
+- `--sim-conf <path.py>`: Simulation, compute, and output definitions,
+  including `simulation_type`, `wavelength_range`, `polarizations`,
   `compute = {n_workers, n_threads, n_gpus_per_worker, ...}`,
-  `output = {dir, name}` 등)
-- `--verbose` : 로딩한 `str_conf`, `sim_conf`, merged cfg 를 모두 JSON
-  으로 dump.
+  `output = {dir, name}`, and related parameters.
+- `--verbose`: Dumps the loaded `str_conf`, `sim_conf`, and merged config
+  as JSON.
 
-### Mode B — Legacy YAML (backward-compat)
+### Mode B - Legacy YAML (Backward Compatibility)
 
 ```bash
 python run_simulation.py --config path/to/cfg.yaml
 ```
 
-기존 jk-config 의 `auag_r0.2_g0.6.yaml` 같은 YAML 들이 그대로 동작한다.
-새 모드를 사용하지 않을 때만 `--config` 가 필요하다.
+Existing jk-config YAML files such as `auag_r0.2_g0.6.yaml` continue to work
+without modification. The `--config` option is required only when the new
+mode is not used.
 
-## 2. `.py` config 형식
+## 2. `.py` Config Format
 
-`.py` config 파일은 **`args = {...}`** 단 한 개의 dict 만 정의해야 한다.
-실행 시 `exec()` 으로 로딩되며 `args` 가 없거나 dict 가 아니면 실패한다.
+Each `.py` config file must define exactly one dictionary named
+**`args = {...}`**. The file is loaded with `exec()`. Loading fails if
+`args` is missing or is not a dictionary.
 
-### `str_conf` 예시 (`examples/auag_dimer_str.py`)
+### `str_conf` Example (`examples/auag_dimer_str.py`)
 
 ```python
 args = {
@@ -61,7 +64,7 @@ args = {
         'agcl': {'type': 'constant', 'epsilon': 2.02}}}
 ```
 
-### `sim_conf` 예시 (`examples/auag_dimer_sim.py`)
+### `sim_conf` Example (`examples/auag_dimer_sim.py`)
 
 ```python
 args = {
@@ -92,52 +95,52 @@ args = {
         'save_plots': True}}
 ```
 
-## 3. CLI override 우선순위
+## 3. CLI Override Priority
 
+```text
+CLI flag > sim_conf nested compute/output > default
 ```
-CLI flag  >  sim_conf nested compute/output  >  default
-```
 
-자주 쓰는 override:
+Common overrides:
 
-| Flag                       | 효과                                                      |
-| -------------------------- | --------------------------------------------------------- |
-| `--n-workers N`            | `compute.n_workers` 덮어쓰기                              |
-| `--n-threads N`            | `compute.n_threads` 덮어쓰기                              |
-| `--n-gpus-per-worker N`    | `compute.n_gpus_per_worker` 덮어쓰기                      |
-| `--vram-share-backend X`   | `cusolvermg` / `magma` / `nccl` (n-gpus > 1 일 때만 의미) |
-| `--multi-node`             | `compute.multi_node = True`                               |
-| `--auto`                   | SLURM/PBS env 에서 compute plan 자동 감지                 |
-| `--simulation-name X`      | `output.name` 덮어쓰기 (run folder)                       |
-| `--output-dir DIR`         | `output.dir` 덮어쓰기                                     |
-| `--n-wavelengths N`        | wavelength sub-sample (디버깅용)                          |
-| `--reanalyze`              | 시뮬 skip, postprocess 만 재실행                          |
-| `--verbose`                | str_conf / sim_conf / merged cfg 출력                     |
+| Flag | Effect |
+|---|---|
+| `--n-workers N` | Overrides `compute.n_workers` |
+| `--n-threads N` | Overrides `compute.n_threads` |
+| `--n-gpus-per-worker N` | Overrides `compute.n_gpus_per_worker` |
+| `--vram-share-backend X` | Selects `cusolvermg`, `magma`, or `nccl`; relevant only when `n_gpus_per_worker > 1` |
+| `--multi-node` | Sets `compute.multi_node = True` |
+| `--auto` | Automatically detects the compute plan from the SLURM/PBS environment |
+| `--simulation-name X` | Overrides `output.name`, which determines the run folder |
+| `--output-dir DIR` | Overrides `output.dir` |
+| `--n-wavelengths N` | Subsamples wavelengths for debugging |
+| `--reanalyze` | Skips the simulation and reruns postprocessing only |
+| `--verbose` | Prints `str_conf`, `sim_conf`, and the merged config |
 
-## 4. 변환 도구
+## 4. Conversion Tools
 
-### Legacy `.py` (mnpbem_simulation 형식) → YAML
+### Legacy `.py` Configs in the mnpbem_simulation Format to YAML
 
 ```bash
 python -m pymnpbem_simulation.migration.py_to_yaml \
     legacy_str.py legacy_sim.py output.yaml
 ```
 
-### YAML → `--str-conf` / `--sim-conf` `.py` 쌍
+### YAML to a `--str-conf` / `--sim-conf` `.py` Pair
 
 ```bash
 python -m pymnpbem_simulation.migration.yaml_to_str_sim \
     input.yaml out_str.py out_sim.py
 ```
 
-이 도구로 기존 jk-config YAML 들을 `.py` 로 다시 분할하여 새 CLI 패턴
-으로 사용할 수 있다.
+This tool can split existing jk-config YAML files back into `.py` files for
+use with the new CLI pattern.
 
-## 5. 실행 예시
+## 5. Execution Examples
 
-### v1.5.2 권장 setting (4 GPU VRAM share)
+### Recommended v1.5.2 Setting (Four-GPU VRAM Share)
 
-`auag_dimer_sim.py` 의 `compute` 블록:
+The `compute` block in `auag_dimer_sim.py`:
 
 ```python
 'compute': {
@@ -148,7 +151,7 @@ python -m pymnpbem_simulation.migration.yaml_to_str_sim \
     'iterative': True}
 ```
 
-또는 CLI 로 override:
+Or override from the CLI:
 
 ```bash
 python run_simulation.py \
@@ -160,7 +163,7 @@ python run_simulation.py \
     --verbose
 ```
 
-### Multi-node SLURM
+### Multi-Node SLURM
 
 ```bash
 srun python run_simulation.py \
@@ -168,7 +171,7 @@ srun python run_simulation.py \
     --multi-node --auto
 ```
 
-### 빠른 디버깅 (3 wavelengths only)
+### Quick Debugging (Three Wavelengths Only)
 
 ```bash
 python run_simulation.py \
@@ -177,26 +180,29 @@ python run_simulation.py \
     --n-wavelengths 3 --simulation-name sphere_smoke
 ```
 
-## 6. 키 매핑 요약
+## 6. Key Mapping Summary
 
-`.py` config 의 flat key 들이 내부 cfg dict 의 어느 section 으로 가는지
-는 `pymnpbem_simulation.migration.py_to_yaml._KEY_TO_SECTION` 에 정의
-되어 있다. 주요 매핑:
+The mapping from flat keys in the `.py` config files to sections in the
+internal config dictionary is defined in
+`pymnpbem_simulation.migration.py_to_yaml._KEY_TO_SECTION`.
 
-| `.py` flat key        | 내부 cfg section            |
-| --------------------- | --------------------------- |
-| `structure`           | `structure.type`            |
-| `core_size`, `gap`, ...| `structure.<...>`          |
-| `materials`           | `materials.particle_list`   |
-| `medium`              | `materials.medium`          |
-| `simulation_type`     | `simulation.type`           |
-| `excitation_type`     | `simulation.excitation`     |
-| `wavelength_range`    | `simulation.wavelength_range` |
-| `polarizations`       | `simulation.polarizations`  |
-| `num_workers`         | `compute.n_workers`         |
-| `output_dir`          | `output.dir`                |
-| `simulation_name`     | `output.name`               |
+Important mappings:
 
-`sim_conf.py` 안에서 `compute = {...}`, `output = {...}` 같은 nested
-dict 로 직접 작성해도 우선 적용된다 (mnpbem_simulation 의 flat 형식과
-새로운 nested 형식 모두 지원).
+| `.py` Flat Key | Internal Config Section |
+|---|---|
+| `structure` | `structure.type` |
+| `core_size`, `gap`, ... | `structure.<...>` |
+| `materials` | `materials.particle_list` |
+| `medium` | `materials.medium` |
+| `simulation_type` | `simulation.type` |
+| `excitation_type` | `simulation.excitation` |
+| `wavelength_range` | `simulation.wavelength_range` |
+| `polarizations` | `simulation.polarizations` |
+| `num_workers` | `compute.n_workers` |
+| `output_dir` | `output.dir` |
+| `simulation_name` | `output.name` |
+
+Nested dictionaries such as `compute = {...}` and `output = {...}` may also
+be written directly inside `sim_conf.py`. These nested values take priority.
+Both the flat format from `mnpbem_simulation` and the newer nested format are
+supported.
