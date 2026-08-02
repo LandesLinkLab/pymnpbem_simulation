@@ -13,13 +13,13 @@
   # sweep (multi-case); analyze each if --anal-conf given
   python master.py --sweep-conf sweep.yaml [--anal-conf A.py]
 
-Rules (규칙):
+Rules:
   - --str-conf + --sim-conf  -> run the simulation (they are a set; str needs sim).
   - --anal-conf              -> run the postprocess/analysis (optional; most runs skip it).
   - --sim-conf + --anal-conf without --str-conf -> postprocess ONLY the existing output
     (the sim-conf supplies output_dir/simulation_name so we can find spectrum.npz + sigma/).
 Wraps run_simulation.py and run_postprocess.py; no --skip-* flags — presence of the
-configs decides what runs. (분석은 --anal-conf 가 있을 때만; 대부분은 str+sim 만.)
+configs decides what runs.
 """
 import argparse
 import os
@@ -36,7 +36,7 @@ def _resolve_case_dir(sim_conf_path):
     """Return <output_dir>/<simulation_name> for a sim-conf, or None.
 
     Accepts flat sim-conf keys (output_dir / simulation_name) or nested
-    output.{dir,name}. (sim-conf 에서 출력 케이스 폴더를 계산 — 분석-only 에서 결과 위치 파악용.)
+    output.{dir,name}.
     """
     sys.path.insert(0, HERE)
     from pymnpbem_simulation.config import load_py_config
