@@ -1,6 +1,7 @@
 # CLI Reference
 
-`run_simulation.py` (or `python -m pymnpbem_simulation.cli`) 의 모든 옵션을 정리.
+This document summarizes all options for `run_simulation.py` or
+`python -m pymnpbem_simulation.cli`.
 
 ## Usage
 
@@ -10,67 +11,74 @@ python run_simulation.py --config CONFIG_YAML [OPTIONS]
 
 ## Options
 
-### 필수
+### Required
 
 - `--config PATH`
-  YAML config 파일 경로.
+  Path to the YAML config file.
 
-### 병렬 (3-축 모델)
+### Parallel Execution (Three-Axis Model)
 
 - `--n-workers INT`
-  동시 worker 프로세스 수. wavelength 분배 단위. 기본값: YAML 의 `compute.n_workers` 또는 1.
+  Number of concurrent worker processes. Wavelengths are distributed across
+  workers. Default: `compute.n_workers` from YAML, or 1.
 
 - `--n-threads INT`
-  각 worker 안의 BLAS/OMP/Numba thread 수. CPU intensive 부분 가속.
+  Number of BLAS, OMP, and Numba threads inside each worker. Used to accelerate
+  CPU-intensive operations.
 
 - `--n-gpus-per-worker INT`
   - `0`: CPU only
-  - `1`: 단일 GPU per worker (Lane D 패턴)
-  - `2+`: VRAM pool (cuSolverMg/Magma — Lane E2 후속)
+  - `1`: One GPU per worker, following the Lane D pattern
+  - `2+`: VRAM pool using cuSolverMg or Magma, planned as a follow-up to Lane E2
 
 - `--multi-node`
-  mpi4py 기반 multi-node MPI dispatch. 기본 OFF. (Wave 3 구현 예정)
+  Enable mpi4py-based multi-node MPI dispatch. Disabled by default.
+  Planned for Wave 3.
 
 - `--auto`
-  SLURM/PBS 환경에서 GPU/CPU 자동 감지 후 plan 자동 산출.
-  - `SLURM_GPUS_ON_NODE`, `SLURM_JOB_GPUS`, `PBS_GPUFILE`, `CUDA_VISIBLE_DEVICES` 우선순위로 감지
+  Automatically detect GPU and CPU resources in SLURM or PBS environments and
+  generate a compute plan.
+  - Detection priority:
+    `SLURM_GPUS_ON_NODE`, `SLURM_JOB_GPUS`, `PBS_GPUFILE`,
+    `CUDA_VISIBLE_DEVICES`
 
 ### Output
 
 - `--output-dir PATH`
-  결과 root 디렉토리 (YAML `output.dir` override).
+  Root output directory. Overrides YAML `output.dir`.
 
 - `--simulation-name STR`
-  시뮬레이션 이름 (output 폴더명, YAML `output.name` override).
+  Simulation name and output folder name. Overrides YAML `output.name`.
 
-### Debug / Workflow
+### Debugging and Workflow
 
 - `--n-wavelengths INT`
-  wavelength sub-sample 수 (작은 회귀 테스트 용).
+  Number of wavelength subsamples for small regression tests.
 
 - `--reanalyze`
-  시뮬 skip, 기존 `spectrum.npz` 만 다시 분석/플로팅.
+  Skip the simulation and rerun analysis and plotting using the existing
+  `spectrum.npz` file.
 
 - `--verbose`
-  상세 로그.
+  Enable detailed logging.
 
-## Exit codes
+## Exit Codes
 
-| Code | 의미 |
+| Code | Meaning |
 |---|---|
-| 0 | 성공 |
-| 1 | YAML 로딩 실패 |
-| 2 | config validation 실패 |
-| 3 | multi-node 미구현 (Wave 3) |
-| 4 | reanalyze: spectrum.npz 없음 |
+| 0 | Success |
+| 1 | YAML loading failed |
+| 2 | Config validation failed |
+| 3 | Multi-node mode is not implemented yet; planned for Wave 3 |
+| 4 | Reanalysis failed because `spectrum.npz` was not found |
 
-## 우선순위
+## Priority
 
-CLI > YAML > `--auto` > 디폴트 (`compute = {1, 1, 0}`)
+CLI > YAML > `--auto` > defaults (`compute = {1, 1, 0}`)
 
-## 예시
+## Examples
 
-### CPU 빠른 회귀 (10 wl)
+### Quick CPU Regression Test (10 Wavelengths)
 
 ```bash
 python run_simulation.py \
@@ -81,7 +89,7 @@ python run_simulation.py \
     --n-threads 4
 ```
 
-### SLURM GPU auto
+### SLURM GPU Auto-Detection
 
 ```bash
 srun -N1 --gres=gpu:4 python run_simulation.py \
@@ -89,7 +97,7 @@ srun -N1 --gres=gpu:4 python run_simulation.py \
     --auto
 ```
 
-### 명시적 multi-GPU
+### Explicit Multi-GPU Execution
 
 ```bash
 python run_simulation.py \
