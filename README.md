@@ -6,7 +6,7 @@ A ground-up rewrite of the former MATLAB-based `mnpbem_simulation` wrapper that 
 calls the Python MNPBEM port (`~/workspace/MNPBEM`) directly.
 
 Key changes:
-- Removes the MATLAB code-generation step → calls Python functions directly
+- Removes the MATLAB code-generation step -> calls Python functions directly
 - Data formats: Python-native (`.npz` / `.h5`); no `.mat`
 - Config: YAML + CLI override (argparse-based)
 - 3-axis parallelism (`n_workers × n_threads × n_gpus_per_worker`)
@@ -89,11 +89,11 @@ python run_simulation.py --config examples/dimer_baseline.yaml --auto
 ### Conversion tools
 
 ```bash
-# Legacy mnpbem_simulation .py → YAML
+# Legacy mnpbem_simulation .py -> YAML
 python -m pymnpbem_simulation.migration.py_to_yaml \
     /path/to/config_str.py /path/to/config_sim.py output.yaml
 
-# YAML → --str-conf/--sim-conf .py pair
+# YAML -> --str-conf/--sim-conf .py pair
 python -m pymnpbem_simulation.migration.yaml_to_str_sim \
     input.yaml out_str.py out_sim.py
 ```
@@ -121,10 +121,10 @@ An `anal-conf` .py defines `args = {...}` with argparse dest keys (`analyzers`,
 `case_dir`, `result`, `output`, ...). Comma-string options also accept a Python list, and
 `polarizations` accepts a nested list.
 
-### Whole pipeline in one command: `master.py` (simulate → analyze)
+### Whole pipeline in one command: `master.py` (simulate -> analyze)
 
 **The action is inferred from which configs you pass** (no `--skip-*` flags):
-`--str-conf`+`--sim-conf` (a set) → simulate; add `--anal-conf` → also analyze. Most runs give
+`--str-conf`+`--sim-conf` (a set) -> simulate; add `--anal-conf` -> also analyze. Most runs give
 just str+sim; add `--anal-conf` only when you want a specific postprocess (e.g. phase analysis).
 
 ```bash
@@ -164,7 +164,7 @@ pymnpbem_simulation/
 │   ├── postprocess/        # direct numpy processing
 │   ├── dispatch/           # CPU/GPU/multi-node distribution
 │   ├── io/                 # .npz / .h5 output
-│   └── migration/          # .py config → YAML conversion
+│   └── migration/          # .py config -> YAML conversion
 ├── tests/                  # pytest regression tests
 ├── examples/               # example YAML configs
 └── docs/                   # design docs
@@ -179,7 +179,7 @@ such as Au / Au@Ag / core-shell dimer sweeps.
 - **Simulation modes**: planewave / dipole / EELS × quasistatic (stat) / retarded (ret), in vacuum and on substrates (layered Green / Sommerfeld)
 - **12+ structure builders**: sphere, dimer, core-shell, custom dielectric shells (`refractive_index_paths`), monomer, advanced_dimer_cube (rounded-edge), etc.
 - **3-axis parallelism** (`n_workers × n_threads × n_gpus_per_worker`) + SLURM/PBS auto-detect + per-GPU pinned isolated sweeps
-- **GPU acceleration** (cupy) + **multi-GPU VRAM-share** (cuSolverMg distributed dense LU) — supports meshes exceeding a single GPU's VRAM (48 GB)
+- **GPU acceleration** (cupy) + **multi-GPU VRAM-share** (cuSolverMg distributed dense LU) - supports meshes exceeding a single GPU's VRAM (48 GB)
 - **sigma cache**: dump/reload surface charges (σ) to recompute spectra, fields and observables without re-solving the BEM system + spectrum sweep RESUME
 - **postprocess**: Fano analysis (qs full-eig bright/dark + dipole phase + Lorentzian fit), surface-charge visualization, eigenmode analysis
 - **Validation**: 72-demo regression against MATLAB MNPBEM (max rel err ~10⁻³·⁹, median ~10⁻¹³·⁵)
