@@ -146,7 +146,6 @@ def _build_parser() -> argparse.ArgumentParser:
     # on the CLI" apart from an explicit value.  _apply_anal_conf() then fills
     # each None from --anal-conf (if provided) or the built-in default.
     # Precedence: explicit CLI flag > --anal-conf > built-in default.
-    # (분석 하이퍼파라미터를 --anal-conf 로도 줄 수 있게; CLI 플래그가 최우선.)
     parser.add_argument('--result', type = str, default = None,
             help = 'Path to result .npz file (with wavelength/ext/sca/abs). '
                    'Required unless provided via --anal-conf (result=).')
@@ -279,7 +278,6 @@ def _apply_anal_conf(args: argparse.Namespace) -> None:
     config (or the built-in default) fills it in — this keeps the analyzer
     hyperparameters config-driven and reproducible, mirroring the
     --str-conf/--sim-conf pattern of run_simulation.py.
-    (분석 하이퍼파라미터를 config 로 받아 재현 가능하게. 우선순위: CLI > anal-conf > 기본값.)
     """
     conf = {}
     if getattr(args, 'sim_conf', None) and not getattr(args, 'anal_conf', None):
