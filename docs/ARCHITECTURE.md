@@ -1,32 +1,32 @@
-# pymnpbem_simulation — Architecture
+# pymnpbem_simulation - Architecture
 
-## 디자인 원칙
+## Design Principles
 
-1. **Pipeline-first**: 가장 단순한 dimer baseline 으로 end-to-end 동작 먼저 확보, 이후 기능 확장.
-2. **MATLAB 코드 생성 제거**: 기존 wrapper 의 `simulation_script.m` 합성 단계 (4034 라인) 를 폐기. Python MNPBEM port 의 함수를 직접 호출.
-3. **Python-native I/O**: `.mat` 미사용. `.npz` (압축) + `.h5` (대용량 field). 결과 분석은 `.npz` 만 로드.
-4. **3-축 병렬**: `n_workers × n_threads × n_gpus_per_worker`. CPU/GPU 동일 모델.
-5. **YAML config**: argparse + PyYAML. CLI override 가 YAML 보다 우선.
+1. **Pipeline-first**: Establish end-to-end operation with the simplest dimer baseline first, then expand functionality.
+2. **Remove MATLAB code generation**: Eliminate the former wrapper's `simulation_script.m` synthesis stage, which consisted of 4,034 lines. Call functions from the Python MNPBEM port directly.
+3. **Python-native I/O**: Do not use `.mat` files. Use `.npz` for compressed data and `.h5` for large field data. Result analysis loads only `.npz` files.
+4. **Three-axis parallelism**: `n_workers × n_threads × n_gpus_per_worker`. Use the same model for CPU and GPU execution.
+5. **YAML config**: Use argparse and PyYAML. CLI overrides take precedence over YAML values.
 
-## 모듈 책임
+## Module Responsibilities
 
-| 모듈 | 책임 | 의존 |
+| Module | Responsibility | Dependencies |
 |---|---|---|
-| `cli.py` | argparse, env_setup 호출, dispatch 호출, postprocess 트리거 | (전부) |
-| `config.py` | YAML 로드/검증/디폴트, snapshot 저장 | yaml |
-| `auto_detect.py` | SLURM/PBS/CUDA_VISIBLE_DEVICES 감지 → (n_w, n_t, n_g) plan | os |
-| `env_setup.py` | `OMP_NUM_THREADS`/`MNPBEM_GPU` 등 환경변수 set (반드시 mnpbem import 전) | os |
-| `util.py` | seed, json save (NFS retry), tolerance grading | numpy |
-| `structures/` | YAML structure section → MNPBEM `ComParticle` 객체 | mnpbem.geometry, materials |
-| `simulation/` | excitation + BEM solver + wavelength loop | mnpbem.bem, simulation, spectrum |
-| `dispatch/` | n_workers/n_gpus_per_worker 보고 적절한 runner 선택 | simulation |
-| `io/` | result dict → `.npz` + `.json` 저장 | numpy |
-| `postprocess/` | spectrum 분석 (peak/FWHM), plot | matplotlib |
-| `migration/` | 기존 `.py` config (exec 방식) → YAML 변환 | yaml |
+| `cli.py` | argparse, calls `env_setup`, calls dispatch, triggers postprocessing | all modules |
+| `config.py` | YAML loading, validation, defaults, and snapshot saving | yaml |
+| `auto_detect.py` | Detects SLURM, PBS, and `CUDA_VISIBLE_DEVICES`, then creates an `(n_w, n_t, n_g)` plan | os |
+| `env_setup.py` | Sets environment variables such as `OMP_NUM_THREADS` and `MNPBEM_GPU`; must run before importing mnpbem | os |
+| `util.py` | Seed handling, JSON saving with NFS retry, and tolerance grading | numpy |
+| `structures/` | Converts the YAML `structure` section into an MNPBEM `ComParticle` object | mnpbem.geometry, materials |
+| `simulation/` | Excitation, BEM solver, and wavelength loop | mnpbem.bem, simulation, spectrum |
+| `dispatch/` | Selects the appropriate runner based on `n_workers` and `n_gpus_per_worker` | simulation |
+| `io/` | Saves a result dictionary as `.npz` and `.json` | numpy |
+| `postprocess/` | Spectrum analysis, including peak and FWHM extraction, and plotting | matplotlib |
+| `migration/` | Converts legacy `.py` configs executed with `exec` into YAML | yaml |
 
-## 데이터 흐름
+## Data Flow
 
-```
+```text
    YAML config + CLI args
             │
             ▼
@@ -36,7 +36,7 @@
    auto_compute_plan / explicit (n_w, n_t, n_g)
             │
             ▼
-   env_setup.setup_env(n_t, n_g)   ← 반드시 mnpbem import 전
+   env_setup.setup_env(n_t, n_g)   ← must run before importing mnpbem
             │
             ▼
    build_structure → (ComParticle p, epstab, nfaces)
@@ -68,25 +68,30 @@
 
 ## Wave 1 → Wave 2 → Wave 3 → Wave 4 (M1-M10)
 
-- Wave 1 (현재): skeleton + dimer_cube planewave_ret CPU baseline
-- Wave 2 (M2-M6): GPU dispatch / field calculation / 12 구조 / dipole+EELS / substrate / postprocess full
-- Wave 3 (M7, M9): mirror+iter+nonlocal / multi-node MPI+PBS
-- Wave 4 (M10): 회귀 (dimer + sphere/rod 51 case + 72 demo)
+- Wave 1 (current): skeleton + `dimer_cube` `planewave_ret` CPU baseline
+- Wave 2 (M2-M6): GPU dispatch, field calculation, 12 structures, dipole + EELS, substrate, and full postprocessing
+- Wave 3 (M7, M9): mirror + iterative + nonlocal, and multi-node MPI + PBS
+- Wave 4 (M10): regression testing with dimer, 51 sphere/rod cases, and 72 demos
 
-## CONVENTIONS 준수 사항
+## CONVENTIONS Requirements
 
-- f-string 미사용 → `.format()`
-- 모든 클래스 `(object)` 명시
-- 함수 키워드 인자 `=` 양쪽 공백
-- docstring 미사용
-- match/case 패턴 (`case _: raise ValueError`)
-- 텐서 결합 (concat/cat) 미사용 → empty + 슬라이스 대입
+- Do not use f-strings; use `.format()`.
+- Explicitly declare every class with `(object)`.
+- Include spaces on both sides of `=` in function keyword arguments.
+- Do not use docstrings.
+- Use the match/case pattern, including `case _: raise ValueError`.
+- Do not use tensor concatenation with `concat` or `cat`; allocate with `empty` and assign through slices.
 
-## 검증 baseline
+## Validation Baseline
 
-`~/scratch/pymnpbem_sanity_test/lane_results/baseline_cpu.json` 의 `dimer 47nm × 2, gap 0.6nm, e=0.2, 6336 faces, 100 wl` 결과:
+Reference result from
+`~/scratch/pymnpbem_sanity_test/lane_results/baseline_cpu.json`:
 
-- wall_min: 60.10 (CPU 1 worker × 4 thread)
-- peak ext_x @ 636.36 nm: 39344.20 (rel diff vs MATLAB: 2.4e-4 = good)
+`dimer 47 nm × 2, gap 0.6 nm, e=0.2, 6,336 faces, 100 wavelengths`
 
-Wave 1 의 `tests/test_baseline_dimer.py` 는 wl=10 sub-sample 로 ~6 min 안에 회귀.
+- `wall_min`: 60.10 using 1 CPU worker × 4 threads
+- Peak `ext_x` at 636.36 nm: 39,344.20
+- Relative difference from MATLAB: `2.4e-4`, graded as `good`
+
+The Wave 1 regression test, `tests/test_baseline_dimer.py`, uses a
+10-wavelength subsample and should complete in approximately 6 minutes.
