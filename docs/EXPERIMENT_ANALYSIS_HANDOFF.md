@@ -1,109 +1,580 @@
-# Experiment ↔ Simulation Analysis — Handoff / Onboarding
+# Experiment <-> Simulation Analysis - Handoff / Onboarding
 
-새 세션(실험값 분석 프로젝트)이 첫날 이 문서만 읽으면 (1) 기존 계산결과 위치, (2) pymnpbem /
-pymnpbem_simulation 개요, (3) post-analysis(위상차 분석 포함) 방법을 다 파악하도록 정리한 인수인계
-문서. 세부 근거는 각 섹션이 가리키는 auto-memory 파일(§8)에 있다.
+This handoff document is designed so that a new session for the experimental
+data analysis project can understand, on the first day and from this document
+alone, (1) where the existing simulation results are stored, (2) the
+`pymnpbem` and `pymnpbem_simulation` projects, and (3) the post-analysis
+workflow, including phase-difference analysis.
+
+Detailed supporting information is stored in the auto-memory files referenced
+by each section in Section 8.
 
 ---
 
 ## 0. TL;DR
-- **계산결과**: `~/research/pymnpbem/<family>/<case>/` — 각 케이스에 `spectrum.npz` + `sigma/`(표면전하·전류 캐시) + `config.yaml`.
-- **툴**: `pymnpbem`(=`~/workspace/MNPBEM`, GPU BEM 코어) + `pymnpbem_simulation`(=`~/workspace/pymnpbem_simulation`, 래퍼).
-- **분석 실행**: `python run_postprocess.py --anal-conf A.py --result <case>/spectrum.npz` (또는 `master.py`로 시뮬→분석 한번에).
-- **실측 데이터**: `~/scratch/paper_figure_collection/raw/` (digitized 산란 스펙트럼 CSV).
-- **env**: `~/miniconda3/envs/mnpbem/bin/python` (MNPBEM+cupy 포함).
+
+- **Simulation results**: `~/research/pymnpbem/<family>/<case>/`
+  - Each case contains `spectrum.npz`, a `sigma/` surface-charge and
+    surface-current cache, and `config.yaml`.
+- **Tools**:
+  - `pymnpbem`, located at `~/workspace/MNPBEM`, is the GPU BEM core.
+  - `pymnpbem_simulation`, located at
+    `~/workspace/pymnpbem_simulation`, is the wrapper.
+- **Analysis command**:
+  `python run_postprocess.py --anal-conf A.py --result <case>/spectrum.npz`
+  - `master.py` can run simulation and analysis in one command.
+- **Experimental data**:
+  `~/scratch/paper_figure_collection/raw/`
+  - Contains digitized scattering-spectrum CSV files.
+- **Environment**:
+  `~/miniconda3/envs/mnpbem/bin/python`
+  - Includes MNPBEM and CuPy.
 
 ---
 
-## 1. 계산 결과 저장 위치 (`~/research/pymnpbem/`)
+## 1. Simulation Result Locations (`~/research/pymnpbem/`)
 
-| family | 구조 | 완료 case | 크기 |
-|---|---|---|---|
-| `au_dimer/` | Au dimer (nosub + sub/ITO) | 24 | 24 GB |
-| `auag_dimer_4nm/` | Au@Ag dimer, **4nm Ag 셸** (r0.2/r0.3 × gap + rot15/30/45 회전) | 36 | 53 GB |
-| `auagcl_dimer_4nm/` | Au@AgCl dimer (const 셸) | 4 | 2.1 GB |
-| `monomer/au_r0.2` | Au 단일 큐브 | 1 | 0.4 GB |
-| `auagagcl_dimer/`, `auagago_dimer/` | Au@Ag@AgCl / @AgO 3중셸 | **0 (미완)** | — |
-| (미완) `auag_dimer_1nm` | Au@Ag **1nm 셸** | 0 (config만) | — |
+| Family | Structure | Completed Cases | Size |
+|---|---|---:|---:|
+| `au_dimer/` | Au dimer, without substrate and with substrate/ITO | 24 | 24 GB |
+| `auag_dimer_4nm/` | Au@Ag dimer with a **4 nm Ag shell**, including r0.2/r0.3, gap variation, and 15/30/45 degree rotations | 36 | 53 GB |
+| `auagcl_dimer_4nm/` | Au@AgCl dimer with a constant-permittivity shell | 4 | 2.1 GB |
+| `monomer/au_r0.2` | Single Au cube | 1 | 0.4 GB |
+| `auagagcl_dimer/`, `auagago_dimer/` | Au@Ag@AgCl / Au@Ag@AgO triple-shell structures | **0, incomplete** | - |
+| Incomplete: `auag_dimer_1nm` | Au@Ag with a **1 nm shell** | 0, configs only | - |
 
-**한 케이스 폴더가 담는 것** (예 `au_dimer/nosub/au_r0.2_g0.6/`):
-- `spectrum.npz` — keys: `wavelength`(nm), `ext`, `sca`, `abs`; shape `(n_wl, n_pol)`. 편광 축 평균 = unpolarized.
-- `sigma/` — 파장·편광별 `wl_{nm:07.2f}_p{pol}_d{dir}.npz` + `manifest.json`. **BEM 전체 해**(`sig1,sig2`=표면전하, `h1,h2`=표면전류) → §4의 재계산에 사용.
-- `config.yaml` — 그 run이 실제로 쓴 resolved config (재현 기준). `run_metadata.json`, `postprocess/`, `structure.png`, (있으면) `field.npz`, `spectra_eV`.
+**Contents of one case directory**, for example
+`au_dimer/nosub/au_r0.2_g0.6/`:
 
-**로드**: `np.load(case+'/spectrum.npz')`; sigma는 `pymnpbem_simulation.sigma_cache.load_sigma(case, wl_nm, pols, props)`.
+- `spectrum.npz`
+  - Keys: `wavelength` in nm, `ext`, `sca`, and `abs`.
+  - Shape: `(n_wl, n_pol)`.
+  - Averaging over the polarization axis gives the unpolarized result.
+- `sigma/`
+  - Contains wavelength- and polarization-specific files named
+    `wl_{nm:07.2f}_p{pol}_d{dir}.npz`, together with `manifest.json`.
+  - Stores the **complete BEM solution**:
+    - `sig1`, `sig2`: surface charge
+    - `h1`, `h2`: surface current
+  - Used for recalculation in Section 4.
+- `config.yaml`
+  - Resolved config actually used for the run.
+  - This is the reproducibility reference.
+- Additional files may include:
+  - `run_metadata.json`
+  - `postprocess/`
+  - `structure.png`
+  - `field.npz`
+  - `spectra_eV`
 
-**실측(digitized) 데이터** — `~/scratch/paper_figure_collection/raw/`:
-- `digitized_energy_curve.csv` = Au monomer (Energy_eV, Intensity_norm), 1.45–2.60 eV
-- `black_curve_redigitized.csv` = Au dimer+substrate r0.2 g0.6 (Energy_eV, Scattering), 1.39–2.66 eV
-- 둘 다 산란, peak-normalize 로 비교.
+**Loading the spectrum**:
+
+```python
+data = np.load(case + '/spectrum.npz')
+```
+
+**Loading sigma data**:
+
+```python
+from pymnpbem_simulation.sigma_cache import load_sigma
+
+sigma = load_sigma(case, wl_nm, pols, props)
+```
+
+**Digitized experimental data** is stored in
+`~/scratch/paper_figure_collection/raw/`:
+
+- `digitized_energy_curve.csv`
+  - Au monomer
+  - Columns: `Energy_eV`, `Intensity_norm`
+  - Range: 1.45 to 2.60 eV
+- `black_curve_redigitized.csv`
+  - Au dimer with substrate, r0.2 and g0.6
+  - Columns: `Energy_eV`, `Scattering`
+  - Range: 1.39 to 2.66 eV
+
+Both datasets are scattering spectra and should be peak-normalized before
+comparison.
 
 ---
 
-## 2. `pymnpbem` — Python MNPBEM 포트 (`~/workspace/MNPBEM`)
-- MATLAB MNPBEM → Python + GPU 로 포팅한 **BEM(경계요소법) 나노광학 솔버**. 입자 경계에서 Maxwell을
-  풀어 표면전하 σ 를 구하고 → 소산/산란/흡수 단면적·근접장 계산.
-- quasistatic(stat) / retarded(ret), 진공 / 기판(layered Green, Sommerfeld).
-- GPU 가속(cupy) + fp32(complex64)/fp64. 큰 mesh는 multi-GPU VRAM-share.
-- **주의(성능)**: 분산(VRAM-share) init 은 fp32 config 여도 내부 행렬이 complex128 로 새면 A6000의
-  약한 fp64 때문에 LU가 ~13배 느려짐 → LOWPREC 시 c64 캐스트 필요 (bem_ret_layer 분산 경로).
+## 2. `pymnpbem` - Python MNPBEM Port (`~/workspace/MNPBEM`)
 
-## 3. `pymnpbem_simulation` — 래퍼 (`~/workspace/pymnpbem_simulation`)
-config-driven end-to-end 파이프라인. 상세는 [README.md](../README.md) / [README.en.md](../README.en.md).
-- **시뮬**: `python run_simulation.py --str-conf S.py --sim-conf M.py` (또는 `--config x.yaml`,
-  또는 `--sweep-conf sweep.yaml` 다중). → `spectrum.npz` + sigma 캐시 저장(`simulation.save_sigma_cache`, 기본 on).
-- **분석**: `python run_postprocess.py --anal-conf A.py --result <case>/spectrum.npz` (§4).
-- **한번에**: `python master.py --str-conf S --sim-conf M --anal-conf A` → 시뮬→후처리 순차.
-- 구조 빌더 12+ (sphere/dimer/core-shell/custom 셸/monomer/advanced_dimer_cube).
-- excitation: **planewave/dipole/EELS × stat/ret/(sub)layer** 전부 구현됨(REGISTRY). 편광은 E-field 벡터
-  `polarizations` + 진행방향 `propagation_dirs`. s/p(TE/TM)는 기판일 때 코어가 자동 분해(수직입사=degenerate).
-- SLURM/PBS: `slurm_scripts/`, `pbs_scripts/`, `auto_detect.py`. yaml↔py 변환: `migration/`.
+- A **boundary element method nanophotonics solver** ported from MATLAB
+  MNPBEM to Python with GPU support.
+- Solves Maxwell's equations on particle boundaries to obtain surface charge
+  `sigma`, then calculates:
+  - extinction cross section
+  - scattering cross section
+  - absorption cross section
+  - near fields
+- Supports:
+  - quasistatic (`stat`)
+  - retarded (`ret`)
+  - vacuum
+  - substrate systems using layered Green functions and Sommerfeld integration
+- Provides GPU acceleration through CuPy and supports both:
+  - fp32 / complex64
+  - fp64 / complex128
+- Large meshes can use multi-GPU VRAM sharing.
 
-## 4. Post-analysis
-`run_postprocess.py --analyzers ...` (analyzer 하이퍼파라미터는 `--anal-conf A.py`로 config화 가능, 예 `examples/fano_anal.py`):
-- `spectrum` — ext/sca/abs plot + export(csv/json/npz), eV/nm 축.
-- `fano` — 단일/다중 Lorentzian Fano fit.
-- `fano-analysis` — bright/dark eigenmode + multi-Lorentzian (qs full-eig 기반).
-- `eigenmode` / `multipole` — 고유모드 패턴, multipole 분해.
-- 모듈: `postprocess/{spectrum,fano_fit,fano_analysis,mode_phase,plot_mode_phase,mode_compare,eigenmode,multipole,plot_surface_charge,field_analyzer}.py`.
+**Performance warning**:
 
-**sigma 캐시 재계산 (BEM 재-solve 없이)** — `~/scratch/spectrum_from_cache.py`:
-- `sigma/*.npz`(sig1,sig2,h1,h2) = BEM 전체 해 → `CompStruct(p, wl, sig1=, sig2=, h1=, h2=)` 복원.
-- free-space `PlaneWaveRet(pol,prop)` / 기판 `PlaneWaveRetLayer(pol,prop,layer)` 로 `exc.extinction/scattering(sig)`.
-- 검증: free-space 7.9e-5, layer 7.7e-10. **partial/field-only run 에서 spectrum 복구**할 때 씀. (greentab 불필요.)
-- 같은 캐시로 near-field replay 가능(FieldCalculator field-only 경로).
+The distributed VRAM-share initialization path can accidentally retain
+complex128 internal matrices even when the config requests fp32. Because an
+A6000 has relatively weak fp64 performance, LU can become approximately
+13 times slower. The distributed `bem_ret_layer` path therefore needs an
+explicit complex64 cast when `LOWPREC` is enabled.
 
-## 5. Phase 차이 분석 (Fano 모드 위상) — [[project_fano_phase_analysis]]
-케이스: `au_dimer/sub/au_r0.2_g0.6_sub` 의 1.43 / 1.8 eV feature.
-- **규약-불변 모드 dipole `f_m = a_m·d_m`** 를 써야 함 (개별 eigenvector 위상은 임의). `a_m`=모달진폭(`u_L·σ`),
-  `d_m`=모달 dipole(`Σ u_R[f]·x_f·A_f`). u_L·u_R 위상이 상쇄돼 규약 무관, `Σf_m` = 총 longitudinal dipole.
-- qs 완전기저로 exact: `CompGreenStat(p,p).F` → `scipy.linalg.eig` → 캐시 `~/scratch/_qs_full_eig.npz`, `_dipole_spec.npz`.
-- **★함정**: 고정 eigenbasis(reference 파장 ≈868nm/1.43eV에서 계산)는 **그 근처에서만 valid**. σ(1.8eV) 재구성
-  R²=0.008(거의 직교) → 먼 파장 모달 위상분석 금지. (이걸 몰라서 잘못된 위상차를 한 번 냈던 전례 있음.)
-- **결과**: 1.43/1.8 둘 다 **얕은 Fano** (narrow/broad 진폭비 ≈0.3, 완전 zero 아님). Δφ(narrow−background)≈**π/2
-  = asymmetry 지배**, dip 최소서 0.6–0.71π (이상적 π 미달). 기저-무관 총 dipole 위상 arg(D(ω))는 두 dip 사이 ≈π/2 전진.
-- 스크립트(`~/scratch/`): `rigorous_phase_qs.py`, `analyze_dipole.py`, `fano_fit_global.py`, `fano_sweep.py`, `render_true_dips.py`.
+---
 
-## 6. 실험 vs 시뮬 비교 노하우 — [[project_exp_sim_validation]]
-- **Monomer 검증 통과**: exp peak 2.182 vs sim 2.166 eV (16 meV), r=0.957 → 방법론·monomer 모델 OK.
-- **Dimer+기판(g0.6)**: lineshape는 정확하나 **+114~123 meV 계통 redshift**. no-shift r=0.43 → rigid +114meV 시 r=0.97.
-- **원인**: 현재 sub 시뮬은 전부 **touching(입자-기판 gap 0.001nm)** → substrate coupling **과대평가** → 과도 redshift.
-  실제는 입자가 살짝 떠있거나 ε<3.88(ITO). 물리 재현하려면 **substrate-distance(gap) sweep** 필요.
-- **함정**: r0.3 g0.8 sub의 "peak match"는 Fano 쌍봉의 윗가지 → 가짜, 제외. gap best-fit g3.0도 축퇴 해.
-- 비교 figure: `paper_figure_collection/compare_*.png`.
+## 3. `pymnpbem_simulation` - Wrapper (`~/workspace/pymnpbem_simulation`)
 
-## 7. 논문 Figures — `~/scratch/paper_figures/{fig1,fig2,fig3}` (+ `FIGURES_README.md`)
-- fig1=개념, fig2=검증+성능, fig3=Au dimer 예제(nosub/sub/monomer). fig3는 무거운 sigma 대신 `plotdata.npz`로 재생성. 상세 [[reference_paper_figures]].
+A config-driven end-to-end pipeline. For details, see
+[README.md](../README.md) and [README.en.md](../README.en.md).
 
-## 8. 관련 auto-memory (세션 시작 시 자동 로드; 세부 근거)
-- `project_exp_sim_validation` — 실측 vs 시뮬 (monomer r0.957, dimer+sub +120meV redshift)
-- `project_fano_phase_analysis` — 위상차 분석 방법(f_m)·함정·결과
-- `project_sigma_cache_recompute` — sigma 캐시로 관측량/필드 재계산
-- `reference_paper_figures` — figure 스크립트·데이터·형식
-- `project_auag_dimer_ops`, `project_auag_rotated_campaign`, `project_auagcl_sim`, `project_au_dimer_sim_plan` — 각 캠페인 운영 수치·경로
+- **Simulation**:
 
-## 9. 새 세션에서 쓰는 법
-1. 새 세션 시작 시 이 문서 경로를 알려주기: `~/workspace/pymnpbem_simulation/docs/EXPERIMENT_ANALYSIS_HANDOFF.md`.
-2. auto-memory 는 같은 프로젝트 스코프면 자동 로드됨 — "실험 vs Au/Au@Ag dimer 시뮬 비교" 언급하면 §8 메모리를 참조함.
-3. 분석 시작점: 비교할 실측 파장/편광 확인 → 해당 sim 케이스 `spectrum.npz` 로드 → peak-normalize·eV 변환 →
-   dimer+기판이면 +0.11~0.12 eV offset 감안(§6).
+  ```bash
+  python run_simulation.py --str-conf S.py --sim-conf M.py
+  ```
+
+  Other supported modes:
+
+  ```bash
+  python run_simulation.py --config x.yaml
+  python run_simulation.py --sweep-conf sweep.yaml
+  ```
+
+  The simulation saves `spectrum.npz` and the sigma cache.
+  `simulation.save_sigma_cache` is enabled by default.
+
+- **Analysis**:
+
+  ```bash
+  python run_postprocess.py \
+      --anal-conf A.py \
+      --result <case>/spectrum.npz
+  ```
+
+  See Section 4.
+
+- **Simulation and analysis in one command**:
+
+  ```bash
+  python master.py \
+      --str-conf S.py \
+      --sim-conf M.py \
+      --anal-conf A.py
+  ```
+
+- Includes more than 12 structure builders:
+  - sphere
+  - dimer
+  - core-shell
+  - custom shell
+  - monomer
+  - `advanced_dimer_cube`
+  - others
+
+- Implemented excitation and solver combinations in the registry:
+  - plane wave
+  - dipole
+  - EELS
+  - quasistatic
+  - retarded
+  - substrate/layer variants
+
+- Polarization is defined by:
+  - electric-field vectors in `polarizations`
+  - propagation directions in `propagation_dirs`
+
+- For substrate calculations, the core automatically decomposes into
+  s/p or TE/TM components.
+  - At normal incidence, the two are degenerate.
+
+- Cluster and scheduler support:
+  - `slurm_scripts/`
+  - `pbs_scripts/`
+  - `auto_detect.py`
+
+- YAML and Python config conversion:
+  - `migration/`
+
+---
+
+## 4. Post-Analysis
+
+Run post-analysis with:
+
+```bash
+python run_postprocess.py --analyzers ...
+```
+
+Analyzer hyperparameters can be stored in an `--anal-conf A.py` file.
+See `examples/fano_anal.py`.
+
+Available analyzers:
+
+- `spectrum`
+  - plots `ext`, `sca`, and `abs`
+  - exports CSV, JSON, and NPZ
+  - supports eV and nm axes
+- `fano`
+  - single- or multi-Lorentzian Fano fitting
+- `fano-analysis`
+  - bright/dark eigenmode analysis
+  - multi-Lorentzian analysis
+  - based on the full quasistatic eigensystem
+- `eigenmode`
+  - eigenmode-pattern analysis
+- `multipole`
+  - multipole decomposition
+
+Relevant modules:
+
+```text
+postprocess/
+├── spectrum.py
+├── fano_fit.py
+├── fano_analysis.py
+├── mode_phase.py
+├── plot_mode_phase.py
+├── mode_compare.py
+├── eigenmode.py
+├── multipole.py
+├── plot_surface_charge.py
+└── field_analyzer.py
+```
+
+### Recalculating Observables from the Sigma Cache Without Re-Solving BEM
+
+Reference script:
+
+```text
+~/scratch/spectrum_from_cache.py
+```
+
+The `sigma/*.npz` files store the complete BEM solution:
+
+- `sig1`
+- `sig2`
+- `h1`
+- `h2`
+
+Reconstruct the solution as:
+
+```python
+sig = CompStruct(
+    p,
+    wl,
+    sig1=sig1,
+    sig2=sig2,
+    h1=h1,
+    h2=h2,
+)
+```
+
+Then use:
+
+- Free space:
+
+  ```python
+  exc = PlaneWaveRet(pol, prop)
+  ```
+
+- Substrate:
+
+  ```python
+  exc = PlaneWaveRetLayer(pol, prop, layer)
+  ```
+
+Recalculate observables with:
+
+```python
+extinction = exc.extinction(sig)
+scattering = exc.scattering(sig)
+```
+
+Validation errors:
+
+- Free space: `7.9e-5`
+- Layered substrate: `7.7e-10`
+
+This workflow is useful for recovering spectra from partial or field-only
+runs. A Green-function tabulation is not required.
+
+The same sigma cache can also replay near fields through the field-only path
+of `FieldCalculator`.
+
+---
+
+## 5. Phase-Difference Analysis for Fano Modes
+
+Auto-memory reference: `project_fano_phase_analysis`
+
+Target case:
+
+```text
+au_dimer/sub/au_r0.2_g0.6_sub
+```
+
+Target features:
+
+- 1.43 eV
+- 1.8 eV
+
+### Convention-Invariant Modal Dipole
+
+Use the convention-invariant modal dipole:
+
+```text
+f_m = a_m * d_m
+```
+
+where:
+
+- `a_m` is the modal amplitude:
+
+  ```text
+  a_m = u_L * sigma
+  ```
+
+- `d_m` is the modal dipole:
+
+  ```text
+  d_m = sum_f u_R[f] * x_f * A_f
+  ```
+
+The phase of an individual eigenvector is arbitrary. The phase factors of
+`u_L` and `u_R` cancel in the product, making `f_m` independent of eigenvector
+phase convention.
+
+The total longitudinal dipole is:
+
+```text
+sum_m f_m
+```
+
+### Full Quasistatic Basis
+
+The exact full-basis procedure is:
+
+```python
+F = CompGreenStat(p, p).F
+```
+
+followed by:
+
+```python
+scipy.linalg.eig(...)
+```
+
+Caches:
+
+```text
+~/scratch/_qs_full_eig.npz
+~/scratch/_dipole_spec.npz
+```
+
+### Critical Pitfall
+
+A fixed eigenbasis calculated at a reference wavelength of approximately
+868 nm, or 1.43 eV, is valid only near that wavelength.
+
+Reconstructing the 1.8 eV surface charge using that basis gives:
+
+```text
+R^2 = 0.008
+```
+
+This means the reconstructed state is nearly orthogonal to the actual state.
+Do not perform modal phase analysis far from the reference wavelength using a
+fixed eigenbasis.
+
+This mistake previously produced an incorrect phase difference.
+
+### Results
+
+- Both the 1.43 eV and 1.8 eV features are **shallow Fano resonances**.
+- Narrow-to-broad amplitude ratio:
+
+  ```text
+  approximately 0.3
+  ```
+
+- The response does not reach a complete zero.
+- Phase difference between the narrow mode and background:
+
+  ```text
+  Delta phi approximately pi/2
+  ```
+
+  This indicates asymmetry-dominated behavior.
+
+- At the dip minimum:
+
+  ```text
+  Delta phi = 0.6 to 0.71 pi
+  ```
+
+  This remains below the ideal value of `pi`.
+
+- The basis-independent total dipole phase, `arg(D(omega))`, advances by
+  approximately `pi/2` between the two dips.
+
+Reference scripts in `~/scratch/`:
+
+```text
+rigorous_phase_qs.py
+analyze_dipole.py
+fano_fit_global.py
+fano_sweep.py
+render_true_dips.py
+```
+
+---
+
+## 6. Experimental vs Simulation Comparison
+
+Auto-memory reference: `project_exp_sim_validation`
+
+### Monomer Validation
+
+- Experimental peak: 2.182 eV
+- Simulated peak: 2.166 eV
+- Difference: 16 meV
+- Correlation:
+
+  ```text
+  r = 0.957
+  ```
+
+Conclusion: the methodology and monomer model are valid.
+
+### Dimer with Substrate, g0.6
+
+- The lineshape is reproduced accurately.
+- The simulation shows a systematic redshift of 114 to 123 meV.
+- Correlation without an energy shift:
+
+  ```text
+  r = 0.43
+  ```
+
+- Correlation after applying a rigid +114 meV shift:
+
+  ```text
+  r = 0.97
+  ```
+
+### Likely Cause
+
+All current substrate simulations use an effectively touching geometry:
+
+```text
+particle-substrate gap = 0.001 nm
+```
+
+This likely overestimates substrate coupling and produces excessive redshift.
+
+The real particle may sit slightly above the substrate, or the effective
+substrate permittivity may be lower than 3.88 for ITO.
+
+A substrate-distance sweep is needed for a more physical reproduction.
+
+### Pitfalls
+
+- The apparent peak match for `r0.3 g0.8 sub` corresponds to the upper branch
+  of a Fano doublet and is therefore a false match.
+- A best-fit geometric gap of `g3.0` is also a degenerate solution and should
+  not be interpreted as unique.
+
+Comparison figures:
+
+```text
+paper_figure_collection/compare_*.png
+```
+
+---
+
+## 7. Paper Figures
+
+Location:
+
+```text
+~/scratch/paper_figures/
+├── fig1/
+├── fig2/
+├── fig3/
+└── FIGURES_README.md
+```
+
+- `fig1`: concept
+- `fig2`: validation and performance
+- `fig3`: Au dimer examples
+  - without substrate
+  - with substrate
+  - monomer
+
+To avoid storing or reloading heavy sigma data, Figure 3 can be regenerated
+from:
+
+```text
+plotdata.npz
+```
+
+See auto-memory reference `reference_paper_figures` for details.
+
+---
+
+## 8. Related Auto-Memory Files
+
+These are loaded automatically at the beginning of a session within the same
+project scope and provide the detailed supporting information.
+
+- `project_exp_sim_validation`
+  - experimental vs simulation comparison
+  - monomer correlation `r = 0.957`
+  - dimer with substrate redshift of approximately 120 meV
+- `project_fano_phase_analysis`
+  - convention-invariant `f_m` phase-analysis method
+  - pitfalls
+  - results
+- `project_sigma_cache_recompute`
+  - recalculating observables and fields from the sigma cache
+- `reference_paper_figures`
+  - figure scripts
+  - data
+  - formatting
+- `project_auag_dimer_ops`
+  - campaign operating parameters and paths
+- `project_auag_rotated_campaign`
+  - rotated-campaign operating parameters and paths
+- `project_auagcl_sim`
+  - Au@AgCl simulation operating parameters and paths
+- `project_au_dimer_sim_plan`
+  - Au dimer simulation planning and operating parameters
+
+---
+
+## 9. How to Use This Document in a New Session
+
+1. At the beginning of a new session, provide this document path:
+
+   ```text
+   ~/workspace/pymnpbem_simulation/docs/EXPERIMENT_ANALYSIS_HANDOFF.md
+   ```
+
+2. Auto-memory is loaded automatically within the same project scope.
+   Mentioning an experimental comparison with Au or Au@Ag dimers should cause
+   the Section 8 memories to be referenced.
+
+3. Recommended analysis starting point:
+
+   - Confirm the experimental wavelength range and polarization.
+   - Load the corresponding simulation case from `spectrum.npz`.
+   - Convert to eV.
+   - Peak-normalize the spectra.
+   - For a dimer with substrate, account for the approximately
+     0.11 to 0.12 eV offset described in Section 6.
