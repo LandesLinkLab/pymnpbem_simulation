@@ -1,49 +1,49 @@
-# pymnpbem_simulation — 사용 가이드
+# pymnpbem_simulation - User Guide
 
-## CLI 진입점
+## CLI Entry Point
 
 ```bash
 python run_simulation.py [OPTIONS]
 ```
 
-또는 모듈 형태:
+Or as a module:
 
 ```bash
 python -m pymnpbem_simulation.cli [OPTIONS]
 ```
 
-## 필수 옵션
+## Required Options
 
-| 옵션 | 의미 | 기본값 |
+| Option | Description | Default |
 |---|---|---|
-| `--config PATH` | YAML config 파일 경로 (legacy 단일 실행) | (셋 중 하나 필수) |
-| `--str-conf PATH --sim-conf PATH` | 구조 + 시뮬 분리 .py config (단일 실행) | |
-| `--sweep-conf PATH` | 여러 케이스 병렬 sweep YAML (다중 worker fan-out) | |
+| `--config PATH` | Path to a YAML config file for a legacy single run | One of the three input modes is required |
+| `--str-conf PATH --sim-conf PATH` | Separate structure and simulation `.py` configs for a single run | |
+| `--sweep-conf PATH` | YAML config for running multiple cases in parallel with multi-worker fan-out | |
 
-## 병렬 옵션 (3-축 모델)
+## Parallel Options (Three-Axis Model)
 
-| 옵션 | 의미 | 기본값 |
+| Option | Description | Default |
 |---|---|---|
-| `--n-workers INT` | 동시 worker 프로세스 수 (wavelength 분배 단위) | 1 |
-| `--n-threads INT` | 각 worker 안의 BLAS/OMP thread 수 | 1 |
-| `--n-gpus-per-worker INT` | 각 worker 가 사용할 GPU 수 (0 = CPU, 1 = single GPU, 2+ = VRAM pool) | 0 |
-| `--multi-node` | MPI multi-node 실행 (mpi4py 필요) | False |
-| `--auto` | SLURM/PBS 환경에서 GPU/CPU 자동 감지 | False |
+| `--n-workers INT` | Number of concurrent worker processes, used as the wavelength distribution unit | 1 |
+| `--n-threads INT` | Number of BLAS/OMP threads inside each worker | 1 |
+| `--n-gpus-per-worker INT` | Number of GPUs assigned to each worker (`0` = CPU, `1` = single GPU, `2+` = VRAM pool) | 0 |
+| `--multi-node` | Enable MPI multi-node execution; requires `mpi4py` | False |
+| `--auto` | Automatically detect GPU and CPU resources in SLURM/PBS environments | False |
 
-우선순위: CLI > YAML > `--auto` > 기본값.
+Priority order: CLI > YAML > `--auto` > defaults.
 
-## 기타 옵션
+## Other Options
 
-| 옵션 | 의미 |
+| Option | Description |
 |---|---|
-| `--output-dir PATH` | 결과 저장 디렉토리 (YAML override) |
-| `--simulation-name STR` | 시뮬레이션 이름 (output 폴더명) |
-| `--n-wavelengths INT` | wavelength sub-sample 수 (debug 용) |
-| `--reanalyze` | 시뮬 skip, postprocess 만 다시 실행 |
-| `--verbose` | 상세 로그 출력 |
-| `--help` | 도움말 |
+| `--output-dir PATH` | Output directory, overriding the YAML value |
+| `--simulation-name STR` | Simulation name, used as the output folder name |
+| `--n-wavelengths INT` | Number of wavelength subsamples for debugging |
+| `--reanalyze` | Skip the simulation and rerun postprocessing only |
+| `--verbose` | Enable detailed logging |
+| `--help` | Show help |
 
-## YAML config 구조
+## YAML Config Structure
 
 ```yaml
 structure:
@@ -52,7 +52,7 @@ structure:
   gap: 0.6                      # nm
   n_per_edge: 24                # mesh density
   refine: 3
-  e: 0.2                        # rounding fraction (tricube)
+  e: 0.2                        # rounding fraction for tricube
 
 simulation:
   type: ret                     # ret | stat
@@ -86,37 +86,41 @@ postprocess:
   run_eigenmode_analysis: false
 ```
 
-## 자동 감지 동작 (`--auto`)
+## Automatic Detection Behavior (`--auto`)
 
-- SLURM `--gres=gpu:N` → `SLURM_GPUS_ON_NODE=N` 사용
-- PBS `-l gpus=N` → `PBS_GPUFILE` 사용
-- `CUDA_VISIBLE_DEVICES` 도 fallback 으로 사용
+- SLURM `--gres=gpu:N` uses `SLURM_GPUS_ON_NODE=N`.
+- PBS `-l gpus=N` uses `PBS_GPUFILE`.
+- `CUDA_VISIBLE_DEVICES` is used as a fallback.
 
-휴리스틱:
-- `G ≥ 1` 인 경우: `n_workers=G, n_gpus_per_worker=1, n_threads=C//G`
-- `G == 0` 인 경우: `n_workers=C, n_threads=1`
+Heuristics:
 
-## Sweep mode (`--sweep-conf`)
+- If `G >= 1`: `n_workers=G`, `n_gpus_per_worker=1`, and `n_threads=C//G`.
+- If `G == 0`: `n_workers=C` and `n_threads=1`.
 
-여러 (str_conf, sim_conf) 페어를 병렬로 돌리는 모드. 각 worker 가 자기 GPU 에 pin (`CUDA_VISIBLE_DEVICES` + thread 한도) 되어, GPU 4개 노드에서 4 케이스를 1 GPU 씩 동시에 처리하면 4x throughput.
+## Sweep Mode (`--sweep-conf`)
 
-### 포맷 A — 명시적 list
+This mode runs multiple `(str_conf, sim_conf)` pairs in parallel. Each worker
+is pinned to its own GPU using `CUDA_VISIBLE_DEVICES` and thread limits. On a
+node with four GPUs, four cases can run simultaneously with one GPU per case,
+providing up to 4x throughput.
+
+### Format A - Explicit List
 
 ```yaml
 # sweep.yaml
-sim_conf: configs/jk/sim_default.py        # 공통 sim_conf
+sim_conf: configs/jk/sim_default.py        # shared sim_conf
 str_confs:
   - configs/jk/.../auag_g0.6.py
   - configs/jk/.../auag_g1.0.py
   - configs/jk/.../auag_g2.0.py
   - configs/jk/.../auag_g3.0.py
-n_workers: 4                                # GPU 수에 맞춰
+n_workers: 4                                # match the number of GPUs
 gpus_per_worker: 1
 output_dir: ./results/sweep_gap
-output_subdir_pattern: '{idx:02d}_{name}'   # 결과 폴더명 규칙
+output_subdir_pattern: '{idx:02d}_{name}'   # output folder naming pattern
 ```
 
-또는 case 별 sim_conf 가 다르면:
+If each case uses a different `sim_conf`:
 
 ```yaml
 cases:
@@ -124,7 +128,7 @@ cases:
   - {str_conf: b.py, sim_conf: m2.py, name: bar}
 ```
 
-### 포맷 B — parameter grid 자동 생성
+### Format B - Automatic Parameter Grid Generation
 
 ```yaml
 base_str_conf: configs/jk/auag_base.py
@@ -135,19 +139,23 @@ n_workers: 4
 gpus_per_worker: 1
 ```
 
-여러 키를 동시에 쓰면 cartesian product 로 케이스가 자동 확장된다.
+When multiple keys are specified, cases are expanded automatically as a
+Cartesian product.
 
-### 실행
+### Execution
 
 ```bash
 python run_simulation.py --sweep-conf sweep.yaml
 ```
 
-CLI 옵션 `--n-workers`, `--n-threads`, `--n-gpus-per-worker`, `--output-dir` 는 sweep YAML 의 같은 키를 override 한다.
+The CLI options `--n-workers`, `--n-threads`, `--n-gpus-per-worker`, and
+`--output-dir` override the corresponding values in the sweep YAML file.
 
-GPU id 는 `CUDA_VISIBLE_DEVICES` 또는 `nvidia-smi -L` 에서 자동 감지하여 worker 별로 round-robin 분배한다 (`gpu_ids: [0, 1, 2, 3]` 로 명시 가능).
+GPU IDs are detected automatically from `CUDA_VISIBLE_DEVICES` or
+`nvidia-smi -L` and assigned to workers in round-robin order. They can also be
+specified explicitly with `gpu_ids: [0, 1, 2, 3]`.
 
-## Migration: 기존 `.py` config → YAML
+## Migration: Existing `.py` Config to YAML
 
 ```bash
 python -m pymnpbem_simulation.migration.py_to_yaml \
@@ -156,32 +164,36 @@ python -m pymnpbem_simulation.migration.py_to_yaml \
     output.yaml
 ```
 
-자세한 매핑은 [docs/CONFIG_MIGRATION.md](./docs/CONFIG_MIGRATION.md) 참고.
+For detailed mapping information, see
+[docs/CONFIG_MIGRATION.md](./docs/CONFIG_MIGRATION.md).
 
-## 출력 구조
+## Output Structure
 
-```
+```text
 {output_dir}/{name}/
-├── config.yaml                 # 사용된 config snapshot
+├── config.yaml                 # snapshot of the config used
 ├── spectrum.npz                # ext, sca, abs, wavelength
-├── spectrum.json               # peak / FWHM 분석 결과
+├── spectrum.json               # peak and FWHM analysis results
 ├── spectrum.png                # plot
-├── fields.npz                  # E_total, E_induced 등 (calculate_fields=True 시)
+├── fields.npz                  # E_total, E_induced, etc. when calculate_fields=True
 ├── surface_charge.npz          # surface charge
 └── logs/
     └── pipeline.log
 ```
 
-## 검증 baseline
+## Validation Baseline
 
-`examples/dimer_baseline.yaml` 의 결과는 다음과 일치해야 한다 (machine precision 등급):
+The results from `examples/dimer_baseline.yaml` should match the following
+references at machine-precision level:
 
-- `~/scratch/pymnpbem_sanity_test/lane_results/baseline_cpu.json` (60.10 min CPU, 100 wl)
+- `~/scratch/pymnpbem_sanity_test/lane_results/baseline_cpu.json`
+  (60.10 min CPU, 100 wavelengths)
 - `~/scratch/pymnpbem_sanity_test/spectra_python_postfix_v4.txt`
 
-Tolerance 등급:
+Tolerance levels:
+
 - machine: `<1e-12`
 - OK: `<1e-9`
 - good: `<1e-6`
 - warn: `<1e-3`
-- BAD: `≥1e-3`
+- BAD: `>=1e-3`
