@@ -48,10 +48,15 @@ args['structure_name'] = 'my_structure'
 # args['height'] = 80  # nm (along z-axis)
 # args['mesh_density'] = 5  # element size in nm (smaller = finer mesh)
 # args['materials'] = ['gold']
-# Exact MATLAB mesh: give nphi, ntheta, nz instead of mesh_density.
-# args['nphi'] = 15    # circumference divisions
-# args['ntheta'] = 20  # cap divisions
-# args['nz'] = 20      # length divisions
+# Mesh: choose EITHER mesh_density (above) OR nphi/ntheta/nz (below).
+# nphi/ntheta/nz are SPACINGS, matching the old mnpbem_simulation wrapper:
+# SMALLER means finer, the opposite of the counts trirod takes internally.
+#     nphi   = max(8, ceil((diameter + 1) * pi / nphi))
+#     ntheta = max(6, ceil((diameter + 1) / ntheta))
+#     nz     = max(4, ceil((height - diameter + 1) / nz))
+# args['nphi'] = 3     # circumference spacing
+# args['ntheta'] = 3   # cap spacing
+# args['nz'] = 3       # length spacing
 # Faces are quadrilaterals, matching MATLAB trirod. Set triangles=True to
 # split every quad in two (a different discretisation, NOT a refinement).
 # args['triangles'] = False
