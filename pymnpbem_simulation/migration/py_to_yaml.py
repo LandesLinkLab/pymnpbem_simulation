@@ -64,7 +64,6 @@ _KEY_TO_SECTION = {
     'rounding': ('structure', 'rounding'),
     'roundings': ('structure', 'roundings'),
     'mesh_density': ('structure', 'mesh_density'),
-    'rod_mesh': ('structure', 'rod_mesh'),
     'horizontal': ('structure', 'horizontal'),
     'triangles': ('structure', 'triangles'),
     'nphi': ('structure', 'nphi'),
@@ -224,35 +223,9 @@ def _post_process(cfg: Dict[str, Any]) -> Dict[str, Any]:
             out['simulation']['enei_max'] = wr[1]
             out['simulation']['n_wavelengths'] = wr[2]
 
-    out = _expand_rod_mesh(out)
     out = _redirect_field_only_simulation(out)
     out = _redirect_iterative_to_iter_type(out)
 
-    return out
-
-
-def _expand_rod_mesh(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """Legacy ``rod_mesh = [nphi, ntheta, nz]`` -> the three scalar keys the
-    rod / core_shell_rod builders actually read."""
-
-    struct = cfg.get('structure', None)
-
-    if not isinstance(struct, dict) or 'rod_mesh' not in struct:
-        return cfg
-
-    out = dict(cfg)
-    struct = dict(struct)
-    mesh = struct.pop('rod_mesh')
-
-    if isinstance(mesh, (list, tuple)) and len(mesh) == 3:
-        struct['nphi'] = int(mesh[0])
-        struct['ntheta'] = int(mesh[1])
-        struct['nz'] = int(mesh[2])
-    else:
-        raise ValueError(
-                '[error] <rod_mesh> must be [nphi, ntheta, nz], got <{}>'.format(mesh))
-
-    out['structure'] = struct
     return out
 
 
