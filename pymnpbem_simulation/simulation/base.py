@@ -78,6 +78,12 @@ class SimulationRunner(object):
         if refun is not None:
             opts['refun'] = refun
 
+            npol = getattr(self.p, '_mnpbem_npol', None)
+            if npol is None and hasattr(self.p, 'pfull'):
+                npol = getattr(self.p.pfull, '_mnpbem_npol', None)
+            if npol is not None:
+                opts['npol'] = int(npol)
+
         schur_setting = self._resolve_schur(refun is not None)
         if schur_setting is not None:
             opts['schur'] = schur_setting
