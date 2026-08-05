@@ -26,12 +26,17 @@ _KEY_TO_SECTION = {
     'beam_width': ('simulation', 'beam_width'),
     'interp': ('simulation', 'interp'),
     'refine': ('structure', 'refine'),
+    'pymnpbem_path': ('compute', 'pymnpbem_path'),
+    'mnpbem_path': ('compute', 'pymnpbem_path'),
     'relcutoff': ('simulation', 'relcutoff'),
     'waitbar': ('simulation', 'waitbar'),
     'use_parallel': ('compute', 'use_parallel'),
     'num_workers': ('compute', 'n_workers'),
     'num_cores': ('compute', 'n_workers'),
     'max_comp_threads': ('compute', 'n_threads'),
+    'n_gpus_per_worker': ('compute', 'n_gpus_per_worker'),
+    'num_gpus_per_worker': ('compute', 'n_gpus_per_worker'),
+    'multi_node': ('compute', 'multi_node'),
     'iter_tolerance': ('compute', 'iter_options', 'tol'),
     'iter_maxiter': ('compute', 'iter_options', 'maxit'),
     'h2_tolerance': ('compute', 'iter_options', 'htol'),
@@ -103,8 +108,6 @@ _KEY_TO_SECTION = {
 
 
 _DROP_KEYS = {
-    'mnpbem_path',
-    'pymnpbem_path',
     'matlab_executable',
     'matlab_options'}
 
