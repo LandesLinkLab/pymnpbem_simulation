@@ -74,7 +74,7 @@ args['structure_name'] = 'my_structure'
 # args['core_diameter'] = 40  # nm
 # args['shell_thickness'] = 10  # nm
 # args['mesh_density'] = 5  # element size in nm (smaller = finer mesh)
-# args['materials'] = ['silver', 'gold']  # [shell, core]
+# args['materials'] = ['gold', 'silver']  # [core, shell] (inner -> outer)
 
 # --- Core-Shell Cube ---
 # args['structure'] = 'core_shell_cube'
@@ -82,7 +82,7 @@ args['structure_name'] = 'my_structure'
 # args['shell_thickness'] = 5  # nm
 # args['rounding'] = 0.25
 # args['mesh_density'] = 3  # element size in nm (smaller = finer mesh)
-# args['materials'] = ['silver', 'gold']  # [shell, core]
+# args['materials'] = ['gold', 'silver']  # [core, shell] (inner -> outer)
 
 # --- Core-Shell Rod (Nanorod) ---
 # args['structure'] = 'core_shell_rod'
@@ -125,7 +125,7 @@ args['structure_name'] = 'my_structure'
 # args['gap'] = 10  # nm
 # args['rounding'] = 0.25
 # args['mesh_density'] = 3  # element size in nm (smaller = finer mesh)
-# args['materials'] = ['silver', 'gold']  # [shell, core]
+# args['materials'] = ['gold', 'silver']  # [core, shell] (inner -> outer)
 
 # ============================================================================
 # SECTION 4: ADVANCED DIMER CUBE
@@ -567,7 +567,7 @@ args['use_substrate'] = False
 #    - 0.5: very round edges (sphere-like)
 #
 # 4. Material Order:
-#    - Built-in structures: always [shell, core] or [outer->inner]
+#    - ALL structures: [core, shell_1, ...] (inner -> outer)
 #    - DDA: matches mat_type indices [1->N]
 #    - Advanced dimer/monomer cube: [core, inner->outer]
 #
