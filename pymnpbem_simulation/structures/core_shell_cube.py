@@ -7,7 +7,8 @@ from .advanced_monomer_cube import _resolve_n_per_edge
 from .base import StructureBuilder
 from .sphere import (_build_eps_medium, _build_eps_particle, _count_faces,
         _resolve_materials_list, _resolve_rip)
-from .core_shell_sphere import _normalize_shells, _build_inout_table
+from .core_shell_sphere import (_normalize_shells, _build_inout_table,
+        _resolve_core_name)
 from .cube import _resolve_face_densities, _resolve_edge_profile_kwargs
 from ..util import print_info
 
@@ -64,8 +65,7 @@ class CoreShellCubeBuilder(StructureBuilder):
                 '(set <shell_thickness> or <shells>)')
 
         medium_name = self.cfg_materials.get('medium', 'water')
-        core_name = self.cfg_materials.get('core',
-                self.cfg_materials.get('particle', 'gold'))
+        core_name = _resolve_core_name(self.cfg_struct, self.cfg_materials)
 
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
         eps_medium = _build_eps_medium(medium_name)
