@@ -132,7 +132,44 @@ def _fuse_two_meshes(verts1: np.ndarray, faces1: np.ndarray,
     clean_faces[valid_mask] = vert_map[clean_faces[valid_mask].astype(int)]
     clean_verts = merged_verts[used]
 
+    _assert_fused_watertight(clean_verts, clean_faces)
+
     return clean_verts, clean_faces
+
+
+def _assert_fused_watertight(verts: np.ndarray, faces: np.ndarray) -> None:
+    """Reject a fusion that left the neck open.
+
+    Faces whose centroid falls inside the other cube are deleted, but the
+    intersection curve is never re-meshed, so with a real overlap the two
+    shells do not close: measured on core_size 30 / n_per_edge 8, gap 0 is
+    watertight (all 1764 edges matched) while gap -2, -4 and -10 each leave 56
+    unmatched edges in a ring around the neck. An open boundary makes the BEM
+    inside/outside assignment undefined, so fail instead of returning it.
+    """
+    from collections import Counter
+
+    key = np.round(np.asarray(verts) * 1e8).astype(np.int64)
+    _, inv = np.unique(key, axis = 0, return_inverse = True)
+
+    counts = Counter()
+
+    for row in np.asarray(faces):
+        idx = [int(inv[int(x)]) for x in row if not np.isnan(x)]
+
+        for a, b in zip(idx, idx[1:] + idx[:1]):
+            counts[(min(a, b), max(a, b))] += 1
+
+    n_open = sum(1 for v in counts.values() if v != 2)
+
+    if n_open:
+        raise ValueError(
+            '[error] connected_dimer_cube: fusing the two meshes left {} '
+            'unmatched edges around the neck. Overlapping (gap < 0) cubes are '
+            'not re-meshed along their intersection curve, so the surface does '
+            'not close. Use gap = 0 (touching via the edge rounding), which is '
+            'watertight. (gap<0 는 목 부위가 봉합되지 않습니다 — gap=0 을 '
+            '쓰세요.)'.format(n_open))
 
 
 class ConnectedDimerCubeBuilder(StructureBuilder):
