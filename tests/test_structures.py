@@ -17,14 +17,14 @@ def _smoke_cfg(stype: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     cfg_m = {'medium': 'water', 'particle': 'gold', 'core': 'gold', 'shell': 'silver'}
 
     table: Dict[str, Dict[str, Any]] = {
-        'sphere':                   {'type': 'sphere', 'diameter': 30, 'mesh_density': 60},
+        'sphere':                   {'type': 'sphere', 'diameter': 30, 'n_verts': 60},
         'cube':                     {'type': 'cube', 'size': 20, 'n_per_edge': 6, 'e': 0.25},
         'rod':                      {'type': 'rod', 'diameter': 10, 'height': 30, 'mesh_density': 6.0},
         'ellipsoid':                {'type': 'ellipsoid', 'axes': [10, 12, 15], 'n_verts': 60},
         'triangle':                 {'type': 'triangle', 'side_length': 30, 'thickness': 5, 'nz': 5},
         'dimer_sphere':             {'type': 'dimer_sphere', 'diameter': 30, 'gap': 5, 'n_verts': 60},
         'dimer_cube':               {'type': 'dimer_cube', 'edge': 20, 'gap': 5, 'n_per_edge': 6, 'e': 0.25},
-        'core_shell_sphere':        {'type': 'core_shell_sphere', 'core_diameter': 20, 'shell_thickness': 5, 'mesh_density': 60},
+        'core_shell_sphere':        {'type': 'core_shell_sphere', 'core_diameter': 20, 'shell_thickness': 5, 'n_core': 60},
         'core_shell_cube':          {'type': 'core_shell_cube', 'core_size': 20, 'shell_thickness': 5, 'n_per_edge': 6, 'e': 0.25},
         'core_shell_rod':           {'type': 'core_shell_rod', 'core_diameter': 10, 'shell_thickness': 3, 'height': 40, 'mesh_density': 6.0},
         'dimer_core_shell_cube':    {'type': 'dimer_core_shell_cube', 'core_size': 20, 'shell_thickness': 5, 'gap': 3, 'n_per_edge': 6},
