@@ -1,0 +1,225 @@
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
+
+from .base import StructureBuilder
+from .sphere import (_build_eps_medium, _build_eps_particle, _count_faces,
+        _resolve_materials_list, _resolve_rip, n_from_element_size)
+from ..util import print_info
+
+
+class CoreShellSphereBuilder(StructureBuilder):
+    """Multi-shell core_shell sphere builder (1+ shells).
+
+    YAML config (single-shell, legacy)::
+
+        structure:
+          type: core_shell_sphere
+          core_diameter: 30
+          shell_thickness: 5
+          n_core: 256
+          n_shell: 256
+        materials:
+          medium: water
+          core: gold       # alias: particle
+          shell: silver
+
+    YAML config (N shells, v1.5+)::
+
+        structure:
+          type: core_shell_sphere
+          core_diameter: 30
+          n_core: 256
+          shells:
+            - thickness: 3.0
+              material: silver
+              n: 256
+            - thickness: 2.0
+              material: silica
+              n: 256
+            - thickness: 1.0
+              material: tio2
+              n: 256
+
+    Single-shell legacy keys (`shell_thickness`, `shell`, `n_shell`) remain
+    supported and are normalized into a 1-element shells list internally.
+    """
+
+    def build(self) -> Tuple[Any, Any, int]:
+        from mnpbem.geometry import trisphere, ComParticle
+
+        core_diameter = float(self.cfg_struct.get('core_diameter', 30.0))
+
+        # <mesh_density> is a boundary-element size in nm (same meaning as for
+        # the cube and rod builders), so each layer needs its own conversion —
+        # a shell has a larger diameter and therefore needs more vertices for
+        # the same element size.
+        element_size = self.cfg_struct.get('mesh_density', None)
+
+        if 'n_core' in self.cfg_struct:
+            n_core = int(self.cfg_struct['n_core'])
+        elif element_size is not None:
+            n_core = n_from_element_size(core_diameter, float(element_size))
+        else:
+            n_core = 256
+        refine = int(self.cfg_struct.get('refine', 2))
+        interp = self.cfg_struct.get('interp', 'curv')
+
+        shells = _normalize_shells(self.cfg_struct, self.cfg_materials,
+                default_n = n_core)
+
+        if len(shells) == 0:
+            raise ValueError(
+                '[error] CoreShellSphereBuilder: no shells specified '
+                '(set <shell_thickness> or <shells>)')
+
+        medium_name = self.cfg_materials.get('medium', 'water')
+        core_name = _resolve_core_name(self.cfg_struct, self.cfg_materials)
+
+        rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
+        eps_medium = _build_eps_medium(medium_name)
+        eps_core = _build_eps_particle(core_name, rip)
+
+        epstab = [eps_medium, eps_core]
+        for sh in shells:
+            epstab.append(_build_eps_particle(sh['material'], rip))
+
+        # Build cumulative diameters for shells.
+        cum_d = core_diameter
+        particles = [trisphere(n_core, core_diameter)]
+        for sh in shells:
+            cum_d = cum_d + 2.0 * float(sh['thickness'])
+            # Per-layer element-size conversion: an explicit per-shell <n>
+            # still wins, otherwise size this shell from its own diameter.
+            if element_size is not None and not sh.get('n_explicit', False):
+                n_sh = n_from_element_size(cum_d, float(element_size))
+            else:
+                n_sh = int(sh['n'])
+            particles.append(trisphere(n_sh, cum_d))
+
+        inout = _build_inout_table(len(shells))
+
+        p = ComParticle(epstab, particles, inout,
+                interp = interp, refine = refine)
+
+        nfaces = _count_faces(p)
+        print_info(
+            'CoreShellSphereBuilder: core_d={}nm, n_shells={}, nfaces={}'.format(
+                core_diameter, len(shells), nfaces))
+
+        return p, epstab, nfaces
+
+
+def _resolve_core_name(cfg_struct: Dict[str, Any],
+        cfg_materials: Dict[str, Any]) -> str:
+    """Core material, honouring ``materials = [core, shell_1, ...]``.
+
+    Precedence: explicit ``materials.core`` > first entry of the per-layer
+    list (``structure.materials`` or the migrated ``materials.particle_list``)
+    > ``materials.particle`` > 'gold'.
+    """
+    cfg_materials = cfg_materials or {}
+
+    if 'core' in cfg_materials:
+        return str(cfg_materials['core'])
+
+    mats = _resolve_materials_list(cfg_struct, cfg_materials)
+
+    if len(mats) > 0:
+        return str(mats[0])
+
+    return str(cfg_materials.get('particle', 'gold'))
+
+
+def _resolve_shell_names(cfg_struct: Dict[str, Any],
+        cfg_materials: Dict[str, Any]) -> List[str]:
+    """Shell materials inner -> outer from ``materials = [core, shell_1, ...]``.
+
+    The .py config route can only express per-layer materials through this
+    list (the migration routes it to ``materials.particle_list``); without
+    reading it here every shell silently falls back to the 'silver' default.
+    """
+    mats = _resolve_materials_list(cfg_struct, cfg_materials)
+
+    if len(mats) > 1:
+        return [str(m) for m in mats[1:]]
+
+    return []
+
+
+def _normalize_shells(cfg_struct: Dict[str, Any],
+        cfg_materials: Dict[str, Any],
+        default_n: int) -> List[Dict[str, Any]]:
+    """Resolve N-shell list from either new (`shells`) or legacy keys.
+
+    Returns a list of dicts each containing keys ``thickness``, ``material``,
+    ``n``. Empty list means "no shell" (caller must error).
+
+    Shell material precedence, per layer: the shell entry's own ``material``
+    > the i-th entry of ``materials = [core, shell_1, ...]`` > the single
+    ``materials.shell`` > 'silver'.
+    """
+    cfg_materials = cfg_materials or {}
+    shell_names = _resolve_shell_names(cfg_struct, cfg_materials)
+    explicit_shell = cfg_materials.get('shell', None)
+
+    def _shell_material(i: int) -> str:
+
+        if i < len(shell_names):
+            return shell_names[i]
+
+        if explicit_shell is not None:
+            return str(explicit_shell)
+
+        return 'silver'
+
+    shells_cfg = cfg_struct.get('shells', None)
+
+    if shells_cfg is not None and len(shells_cfg) > 0:
+        out = []
+        for i, sh in enumerate(shells_cfg):
+            thickness = float(sh['thickness'])
+            material = sh.get('material', _shell_material(i))
+            n_sh = int(sh.get('n', default_n))
+            out.append({
+                'thickness': thickness,
+                'material': material,
+                'n': n_sh,
+                'n_explicit': 'n' in sh})
+        return out
+
+    # Legacy single-shell path
+    if 'shell_thickness' in cfg_struct:
+        thickness = float(cfg_struct['shell_thickness'])
+        material = _shell_material(0)
+        n_sh = int(cfg_struct.get('n_shell', default_n))
+        return [{'thickness': thickness, 'material': material, 'n': n_sh,
+                 'n_explicit': 'n_shell' in cfg_struct}]
+
+    return []
+
+
+def _build_inout_table(n_shells: int) -> List[List[int]]:
+    """Construct ComParticle inout for [medium, core, shell_1, ..., shell_N].
+
+    epstab indexing (1-based, MATLAB):
+        eps[1] = medium
+        eps[2] = core
+        eps[3] = shell_1
+        ...
+        eps[N + 2] = shell_N
+
+    Particle list (in build order):
+        p[0] = core         inout = [core, shell_1] = [2, 3]
+        p[1] = shell_1      inout = [shell_1, shell_2] = [3, 4]
+        ...
+        p[N - 1] = shell_N  inout = [shell_N, medium] = [N + 2, 1]
+    """
+    if n_shells == 1:
+        return [[2, 3], [3, 1]]
+
+    inout = [[2, 3]]
+    for i in range(1, n_shells):
+        inout.append([2 + i, 3 + i])
+    inout.append([2 + n_shells, 1])  # outermost shell -> medium
+    return inout
