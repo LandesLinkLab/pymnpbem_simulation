@@ -80,10 +80,18 @@ class WithNonlocalBuilder(StructureBuilder):
         #    [shell_1, core_1, shell_2, core_2, ...] together with epstab and
         #    inout matching MATLAB's [3, 1; 2, 3] pattern (replicated per
         #    sub-particle).
+        # MATLAB shrinks the metal first so the OUTER cover-layer surface ends
+        # up at the requested size (demospecstat19.m:52-53):
+        #     p2 = trisphere(144, diameter - 2*d);  p1 = coverlayer.shift(p2, d)
+        # -> inner radius d/2 - delta, outer radius d/2.
+        # Building the base at the requested size and shifting outward instead
+        # made the particle 2*delta_d too large (measured on diameter 10,
+        # delta 0.05: outer |r| 5.049 vs MATLAB 4.999). Keep the base AS the
+        # cover-layer boundary and move the metal core inward.
         particles_out = []
-        for p_core in p_base.p:
-            p_shell = coverlayer.shift(p_core, delta_d)
-            particles_out.append(p_shell)
+        for p_outer in p_base.p:
+            p_core = coverlayer.shift(p_outer, -delta_d)
+            particles_out.append(p_outer)
             particles_out.append(p_core)
 
         # epstab indices (1-based): 1=embed, 2=core_drude, 3=nonlocal_shell.
@@ -121,6 +129,18 @@ class WithNonlocalBuilder(StructureBuilder):
         # 6) Stash refun on the particle so SimulationRunner can forward it
         #    to BEMStat via the **options channel (CompGreenStat accepts
         #    ``refun=...``).
+        # MATLAB raises the polar-integration order for the thin cover layer
+        # (demospecstat19.m:25 op.npol = 20, demospecstat20.m:26 npol 20 with
+        # refine 3). Without it the refun integration falls back to the engine
+        # default. Carry the setting alongside refun.
+        npol = int(self.cfg_struct.get('npol', cfg_nl.get('npol', 20)))
+
+        try:
+            setattr(p, '_mnpbem_npol', npol)
+        except Exception:
+            if hasattr(p, 'pfull'):
+                setattr(p.pfull, '_mnpbem_npol', npol)
+
         try:
             setattr(p, '_mnpbem_refun', refun)
         except Exception:
