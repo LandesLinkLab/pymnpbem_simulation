@@ -19,6 +19,17 @@ from pathlib import Path
 args = {}
 
 # ============================================================================
+# ENGINE (PyMNPBEM) LOCATION
+# ============================================================================
+# Which copy of the PyMNPBEM engine this run should use. Applied to sys.path
+# before `mnpbem` is first imported, so it wins over whatever the conda env's
+# editable install points at — no PYTHONPATH export needed.
+# Confirm in the log: "[info] engine: using <...> (from config pymnpbem_path)"
+args['pymnpbem_path'] = os.path.join(Path.home(), 'workspace/uiuc/PyMNPBEM')
+# Legacy alias `mnpbem_path` is accepted too. Omit to use whatever `import
+# mnpbem` resolves to.
+
+# ============================================================================
 # PARALLEL COMPUTING OPTIONS
 # ============================================================================
 # Enable parallel computing with multiple cores
@@ -35,6 +46,12 @@ args['use_parallel'] = True  # Set to False to disable parallel computing
 args['num_workers'] = 2
 args['max_comp_threads'] = 64
 args['wavelength_chunk_size'] = 10
+
+# GPUs per worker (0 = CPU). Needs cupy.
+args['n_gpus_per_worker'] = 0
+
+# Multi-node MPI dispatch (needs mpi4py + SLURM/PBS).
+args['multi_node'] = False
 
 # ============================================================================
 # SIMULATION NAME (IDENTIFIER)
@@ -200,7 +217,8 @@ args['use_nonlocality'] = False
 #   gpu_precision = 'fp64' : complex128 dense LU (accurate, default)
 #   gpu_precision = 'fp32' : complex64 dense LU (~14x faster on RTX A6000)
 #       Validation (vs FP64): Au dimer spectrum worst 4.5e-4 — within 1e-3 BEM tolerance.
-#   (GPU execution is enabled via run_simulation.py --n-gpus-per-worker)
+#   (set n_gpus_per_worker above, or override with
+#    run_simulation.py --n-gpus-per-worker)
 args['gpu_precision'] = 'fp64'
 
 # ============================================================================
