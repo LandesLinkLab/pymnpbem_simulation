@@ -63,8 +63,7 @@ class CoreShellSphereBuilder(StructureBuilder):
                 '(set <shell_thickness> or <shells>)')
 
         medium_name = self.cfg_materials.get('medium', 'water')
-        core_name = self.cfg_materials.get('core',
-                self.cfg_materials.get('particle', 'gold'))
+        core_name = _resolve_core_name(self.cfg_struct, self.cfg_materials)
 
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
         eps_medium = _build_eps_medium(medium_name)
@@ -94,6 +93,43 @@ class CoreShellSphereBuilder(StructureBuilder):
         return p, epstab, nfaces
 
 
+def _resolve_core_name(cfg_struct: Dict[str, Any],
+        cfg_materials: Dict[str, Any]) -> str:
+    """Core material, honouring ``materials = [core, shell_1, ...]``.
+
+    Precedence: explicit ``materials.core`` > first entry of the per-layer
+    list (``structure.materials`` or the migrated ``materials.particle_list``)
+    > ``materials.particle`` > 'gold'.
+    """
+    cfg_materials = cfg_materials or {}
+
+    if 'core' in cfg_materials:
+        return str(cfg_materials['core'])
+
+    mats = _resolve_materials_list(cfg_struct, cfg_materials)
+
+    if len(mats) > 0:
+        return str(mats[0])
+
+    return str(cfg_materials.get('particle', 'gold'))
+
+
+def _resolve_shell_names(cfg_struct: Dict[str, Any],
+        cfg_materials: Dict[str, Any]) -> List[str]:
+    """Shell materials inner -> outer from ``materials = [core, shell_1, ...]``.
+
+    The .py config route can only express per-layer materials through this
+    list (the migration routes it to ``materials.particle_list``); without
+    reading it here every shell silently falls back to the 'silver' default.
+    """
+    mats = _resolve_materials_list(cfg_struct, cfg_materials)
+
+    if len(mats) > 1:
+        return [str(m) for m in mats[1:]]
+
+    return []
+
+
 def _normalize_shells(cfg_struct: Dict[str, Any],
         cfg_materials: Dict[str, Any],
         default_n: int) -> List[Dict[str, Any]]:
@@ -101,15 +137,32 @@ def _normalize_shells(cfg_struct: Dict[str, Any],
 
     Returns a list of dicts each containing keys ``thickness``, ``material``,
     ``n``. Empty list means "no shell" (caller must error).
+
+    Shell material precedence, per layer: the shell entry's own ``material``
+    > the i-th entry of ``materials = [core, shell_1, ...]`` > the single
+    ``materials.shell`` > 'silver'.
     """
+    cfg_materials = cfg_materials or {}
+    shell_names = _resolve_shell_names(cfg_struct, cfg_materials)
+    explicit_shell = cfg_materials.get('shell', None)
+
+    def _shell_material(i: int) -> str:
+
+        if i < len(shell_names):
+            return shell_names[i]
+
+        if explicit_shell is not None:
+            return str(explicit_shell)
+
+        return 'silver'
+
     shells_cfg = cfg_struct.get('shells', None)
 
     if shells_cfg is not None and len(shells_cfg) > 0:
         out = []
         for i, sh in enumerate(shells_cfg):
             thickness = float(sh['thickness'])
-            material = sh.get('material',
-                    cfg_materials.get('shell', 'silver'))
+            material = sh.get('material', _shell_material(i))
             n_sh = int(sh.get('n', default_n))
             out.append({
                 'thickness': thickness,
@@ -120,7 +173,7 @@ def _normalize_shells(cfg_struct: Dict[str, Any],
     # Legacy single-shell path
     if 'shell_thickness' in cfg_struct:
         thickness = float(cfg_struct['shell_thickness'])
-        material = cfg_materials.get('shell', 'silver')
+        material = _shell_material(0)
         n_sh = int(cfg_struct.get('n_shell', default_n))
         return [{'thickness': thickness, 'material': material, 'n': n_sh}]
 
