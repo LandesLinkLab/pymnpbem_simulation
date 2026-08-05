@@ -48,10 +48,15 @@ args['structure_name'] = 'my_structure'
 # args['height'] = 80  # nm (along z-axis)
 # args['mesh_density'] = 5  # element size in nm (smaller = finer mesh)
 # args['materials'] = ['gold']
-# Legacy mode (optional): use nphi, ntheta, nz instead of mesh_density
+# Exact MATLAB mesh: give nphi, ntheta, nz instead of mesh_density.
 # args['nphi'] = 15    # circumference divisions
 # args['ntheta'] = 20  # cap divisions
 # args['nz'] = 20      # length divisions
+# Faces are quadrilaterals, matching MATLAB trirod. Set triangles=True to
+# split every quad in two (a different discretisation, NOT a refinement).
+# args['triangles'] = False
+# Long axis lies along x (horizontal=True). Set False to keep it along z.
+# args['horizontal'] = True
 
 # --- Ellipsoid ---
 # args['structure'] = 'ellipsoid'
@@ -407,20 +412,23 @@ args['rotation_angle'] = 0  # degrees, particle 2 rotation around z-axis
 # args['structure'] = 'sphere_cluster_aggregate'
 # args['n_spheres'] = 5  # 1-7 (see structure types below)
 # args['diameter'] = 50  # nm
-# args['gap'] = -0.1  # negative = 0.1nm overlap (contact)
+# args['gap'] = 0.0  # surface-to-surface; 0 = contact
 # args['mesh_density'] = 5  # element size in nm (smaller = finer mesh)
 
 # --- Structure Types by n_spheres ---
 # N=1: Single sphere
 # N=2: Dimer (horizontal, end-to-end)
 # N=3: Triangle (2 bottom, 1 top)
-# N=4: Square (2x2 grid)
-# N=5: Pentagon (3 bottom, 2 top)
-# N=6: Hexagon (3 bottom, 3 top, compact)
-# N=7: Hexagon (4 bottom, 3 top, extended)
+# N=4: central sphere + 3 hexagon neighbours
+# N=5: central sphere + 4 hexagon neighbours
+# N=6: central sphere + 5 hexagon neighbours
+# N=7: central sphere + all 6 hexagon neighbours (full close packing)
 
-# All spheres are positioned in XY plane (z=0)
-# Gap < 0 creates conduction contact (0.1nm overlap = true contact)
+# All spheres lie in the XY plane (z=0), centred on the cluster centroid.
+# gap = 0 puts the surfaces in contact. A NEGATIVE gap makes the closed
+# surfaces actually intersect, which leaves the inside/outside assignment of
+# the overlapped volume undefined and the BEM problem ill-posed — the builder
+# warns if you do it.
 # Perfect for studying hotspot formation and coupled plasmon modes
 
 # args['materials'] = ['gold']
@@ -429,7 +437,7 @@ args['rotation_angle'] = 0  # degrees, particle 2 rotation around z-axis
 # args['structure'] = 'sphere_cluster_aggregate'
 # args['n_spheres'] = 3
 # args['diameter'] = 50
-# args['gap'] = -0.1  # contact
+# args['gap'] = 0.0  # contact
 # args['mesh_density'] = 5  # element size in nm
 # args['materials'] = ['gold']
 # args['use_substrate'] = True
@@ -439,7 +447,7 @@ args['rotation_angle'] = 0  # degrees, particle 2 rotation around z-axis
 # args['structure'] = 'sphere_cluster_aggregate'
 # args['n_spheres'] = 6
 # args['diameter'] = 30
-# args['gap'] = -0.05  # tight contact
+# args['gap'] = 0.0  # contact
 # args['mesh_density'] = 4  # element size in nm
 # args['materials'] = ['silver']
 
@@ -447,7 +455,7 @@ args['rotation_angle'] = 0  # degrees, particle 2 rotation around z-axis
 # args['structure'] = 'sphere_cluster_aggregate'
 # args['n_spheres'] = 7
 # args['diameter'] = 50
-# args['gap'] = -0.1
+# args['gap'] = 0.0
 # args['mesh_density'] = 5  # element size in nm
 # args['materials'] = ['gold']
 # Perfect for maximum field enhancement at multiple junctions
