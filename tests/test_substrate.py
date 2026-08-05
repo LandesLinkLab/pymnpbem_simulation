@@ -106,7 +106,7 @@ def test_substrate_changes_result():
     free_space_cfg = '''structure:
   type: sphere
   diameter: 20.0
-  mesh_density: 144
+  n_verts: 144
   refine: 2
   interp: curv
 
