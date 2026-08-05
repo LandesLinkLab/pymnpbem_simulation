@@ -43,6 +43,10 @@ class CoreShellRodBuilder(StructureBuilder):
         refine = int(self.cfg_struct.get('refine', 2))
         interp = self.cfg_struct.get('interp', 'curv')
         horizontal = bool(self.cfg_struct.get('horizontal', True))
+        # See RodBuilder: MATLAB trirod gives quads; splitting them is a
+        # different discretisation. Core-shell rods are the more sensitive
+        # case (~45% on the transverse channel at [15, 20, 20]).
+        triangles = bool(self.cfg_struct.get('triangles', False))
 
         # Rod meshes are 3-tuples [nphi, ntheta, nz] (list); per-shell n is
         # not directly used by trirod (we recompute via _resolve_rod_mesh
@@ -81,7 +85,7 @@ class CoreShellRodBuilder(StructureBuilder):
 
         p_core = trirod(core_diameter, core_height_eff,
                 _resolve_rod_mesh(self.cfg_struct, core_diameter, core_height_eff),
-                triangles = True)
+                triangles = triangles)
         if horizontal:
             p_core.rot(90, [0, 1, 0])
 
@@ -90,7 +94,7 @@ class CoreShellRodBuilder(StructureBuilder):
             cum_d = cum_d + 2.0 * float(sh['thickness'])
             cum_h = cum_h + 2.0 * float(sh['thickness'])
             n_sh = _resolve_rod_mesh(self.cfg_struct, cum_d, cum_h)
-            p_sh = trirod(cum_d, cum_h, n_sh, triangles = True)
+            p_sh = trirod(cum_d, cum_h, n_sh, triangles = triangles)
             if horizontal:
                 p_sh.rot(90, [0, 1, 0])
             particles.append(p_sh)
