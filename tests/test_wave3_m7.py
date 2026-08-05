@@ -22,39 +22,42 @@ def test_with_mirror_in_registry() -> None:
     assert 'with_mirror' in REGISTRY, '[error] with_mirror missing from REGISTRY'
 
 
-def test_with_mirror_builds_xy() -> None:
+def test_with_mirror_rejects_full_base_xy() -> None:
+    """A complete particle is not a valid ComParticleMirror input.
+
+    MNPBEM expects the symmetry-REDUCED part of the surface (demospecret15.m
+    passes a quarter sphere) and rebuilds the rest by flipping. Handing it a
+    whole sphere stacks 4 identical copies at the origin — verified against
+    MATLAB, which does the same thing with the same input.
+    """
     from pymnpbem_simulation.structures import build_structure
 
     cfg = {'type': 'with_mirror',
-            'base': {'type': 'sphere', 'diameter': 20, 'mesh_density': 60},
+            'base': {'type': 'sphere', 'diameter': 20, 'n_verts': 60},
             'mirror': {'sym': 'xy'}}
-    cfg_m = {'medium': 'water', 'particle': 'gold'}
 
-    p, epstab, n = build_structure(cfg, cfg_m)
+    with pytest.raises(ValueError) as err:
+        build_structure(cfg, {'medium': 'water', 'particle': 'gold'})
 
-    assert n > 0, '[error] mirror produced 0 half-faces'
-    assert len(epstab) >= 2
-    assert hasattr(p, 'pfull'), '[error] mirror particle missing pfull'
-    assert p.pfull.nfaces == 4 * n, \
-            '[error] xy mirror: full nfaces ({}) != 4 * half ({})'.format(p.pfull.nfaces, n)
-    assert getattr(p, 'sym', None) == 'xy'
+    assert 'symmetry-' in str(err.value)
 
 
-def test_with_mirror_builds_x_only() -> None:
+def test_with_mirror_rejects_full_base_x_only() -> None:
     from pymnpbem_simulation.structures import build_structure
 
     cfg = {'type': 'with_mirror',
-            'base': {'type': 'sphere', 'diameter': 20, 'mesh_density': 60},
+            'base': {'type': 'sphere', 'diameter': 20, 'n_verts': 60},
             'mirror': {'sym': 'x'}}
-    p, _, n = build_structure(cfg, {'medium': 'water', 'particle': 'gold'})
-    assert p.pfull.nfaces == 2 * n
+
+    with pytest.raises(ValueError):
+        build_structure(cfg, {'medium': 'water', 'particle': 'gold'})
 
 
 def test_with_mirror_invalid_sym_raises() -> None:
     from pymnpbem_simulation.structures import build_structure
 
     cfg = {'type': 'with_mirror',
-            'base': {'type': 'sphere', 'diameter': 20, 'mesh_density': 60},
+            'base': {'type': 'sphere', 'diameter': 20, 'n_verts': 60},
             'mirror': {'sym': 'z'}}
 
     with pytest.raises(ValueError):
@@ -62,16 +65,25 @@ def test_with_mirror_invalid_sym_raises() -> None:
 
 
 def test_planewave_ret_mirror_smoke() -> None:
-    """Mirror BEM solver runs end-to-end and produces finite, positive cross sections."""
-    from pymnpbem_simulation.structures import build_structure
+    """Mirror BEM solver runs end-to-end and produces finite, positive cross sections.
+
+    Built directly from a symmetry-reduced half sphere (x >= 0), the way MATLAB
+    demospecret15.m feeds comparticlemirror. No registry builder emits a
+    reduced mesh yet, so with_mirror cannot supply one — see
+    with_mirror._assert_symmetry_reduced.
+    """
+    from mnpbem.geometry import ComParticleMirror, trispheresegment
+    from mnpbem.materials import EpsConst, EpsTable
     from pymnpbem_simulation.simulation import build_simulation
 
-    cfg_struct = {'type': 'with_mirror',
-            'base': {'type': 'sphere', 'diameter': 20, 'mesh_density': 60},
-            'mirror': {'sym': 'x'}}
-    cfg_m = {'medium': 'water', 'particle': 'gold'}
+    # phi in [-pi/2, pi/2] keeps x = r sin(theta) cos(phi) >= 0.
+    half = trispheresegment(np.linspace(-np.pi / 2, np.pi / 2, 11),
+            np.linspace(0, np.pi, 15), 20.0)
 
-    p, eps, _ = build_structure(cfg_struct, cfg_m)
+    eps = [EpsConst(1.33 ** 2), EpsTable('gold.dat')]
+    p = ComParticleMirror(eps, [half], [[2, 1]], sym = 'x')
+
+    cfg_struct = {'type': 'with_mirror', 'mirror': {'sym': 'x'}}
 
     cfg = {'structure': cfg_struct,
             'simulation': {'type': 'ret_mirror', 'excitation': 'planewave',
@@ -101,7 +113,7 @@ def test_planewave_ret_iter_matches_dense() -> None:
     from pymnpbem_simulation.structures import build_structure
     from pymnpbem_simulation.simulation import build_simulation
 
-    cfg_struct = {'type': 'sphere', 'diameter': 30, 'mesh_density': 60}
+    cfg_struct = {'type': 'sphere', 'diameter': 30, 'n_verts': 60}
     cfg_m = {'medium': 'water', 'particle': 'gold'}
     enei = np.array([600.0, 700.0])
 
@@ -129,7 +141,7 @@ def test_planewave_stat_iter_matches_dense() -> None:
     from pymnpbem_simulation.structures import build_structure
     from pymnpbem_simulation.simulation import build_simulation
 
-    cfg_struct = {'type': 'sphere', 'diameter': 30, 'mesh_density': 60}
+    cfg_struct = {'type': 'sphere', 'diameter': 30, 'n_verts': 60}
     cfg_m = {'medium': 'water', 'particle': 'gold'}
     enei = np.array([550.0, 700.0])
 
@@ -186,7 +198,7 @@ def test_nonlocal_epstab_three_entries() -> None:
     """epstab = [eps_embed, eps_metal_core, eps_nonlocal_shell]."""
     from pymnpbem_simulation.structures import build_structure
 
-    cfg_local = {'type': 'sphere', 'diameter': 10, 'mesh_density': 60}
+    cfg_local = {'type': 'sphere', 'diameter': 10, 'n_verts': 60}
     cfg_nl = {'type': 'with_nonlocal', 'base': cfg_local,
             'nonlocal': {'metal': 'gold', 'delta_d': 0.05}}
     cfg_m = {'medium': 'water', 'particle': 'gold'}
@@ -204,7 +216,7 @@ def test_nonlocal_shell_eps_is_small() -> None:
     from pymnpbem_simulation.structures import build_structure
     from mnpbem.materials import EpsNonlocal
 
-    cfg_local = {'type': 'sphere', 'diameter': 10, 'mesh_density': 60}
+    cfg_local = {'type': 'sphere', 'diameter': 10, 'n_verts': 60}
     cfg_nl = {'type': 'with_nonlocal', 'base': cfg_local,
             'nonlocal': {'metal': 'gold', 'delta_d': 0.05}}
     cfg_m = {'medium': 'water', 'particle': 'gold'}
@@ -224,7 +236,7 @@ def test_nonlocal_attaches_refun_on_particle() -> None:
     runners can forward it to BEMStat."""
     from pymnpbem_simulation.structures import build_structure
 
-    cfg_local = {'type': 'sphere', 'diameter': 10, 'mesh_density': 60}
+    cfg_local = {'type': 'sphere', 'diameter': 10, 'n_verts': 60}
     cfg_nl = {'type': 'with_nonlocal', 'base': cfg_local,
             'nonlocal': {'metal': 'gold', 'delta_d': 0.05}}
     cfg_m = {'medium': 'water', 'particle': 'gold'}
@@ -241,7 +253,7 @@ def test_nonlocal_two_subparticles_per_base() -> None:
     final ComParticle)."""
     from pymnpbem_simulation.structures import build_structure
 
-    cfg_local = {'type': 'sphere', 'diameter': 10, 'mesh_density': 60}
+    cfg_local = {'type': 'sphere', 'diameter': 10, 'n_verts': 60}
     cfg_nl = {'type': 'with_nonlocal', 'base': cfg_local,
             'nonlocal': {'metal': 'gold', 'delta_d': 0.05}}
     cfg_m = {'medium': 'water', 'particle': 'gold'}
@@ -273,7 +285,7 @@ def test_nonlocal_runs_planewave_stat_smoke() -> None:
     from pymnpbem_simulation.structures import build_structure
     from pymnpbem_simulation.simulation import build_simulation
 
-    cfg_local = {'type': 'sphere', 'diameter': 10, 'mesh_density': 60}
+    cfg_local = {'type': 'sphere', 'diameter': 10, 'n_verts': 60}
     cfg_nl = {'type': 'with_nonlocal', 'base': cfg_local,
             'nonlocal': {'metal': 'gold', 'delta_d': 0.05}}
     cfg_m = {'medium': 'vacuum', 'particle': 'gold'}
@@ -339,7 +351,7 @@ def test_nonlocal_silver_factory() -> None:
     """silver metal name routes through make_nonlocal_pair (no Fermi velocity error)."""
     from pymnpbem_simulation.structures import build_structure
 
-    cfg_local = {'type': 'sphere', 'diameter': 10, 'mesh_density': 60}
+    cfg_local = {'type': 'sphere', 'diameter': 10, 'n_verts': 60}
     cfg_nl = {'type': 'with_nonlocal', 'base': cfg_local,
             'nonlocal': {'metal': 'silver', 'delta_d': 0.05}}
     cfg_m = {'medium': 'vacuum', 'particle': 'silver'}
