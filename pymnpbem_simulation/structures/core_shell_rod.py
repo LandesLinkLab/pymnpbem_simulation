@@ -6,7 +6,8 @@ from .base import StructureBuilder
 from .sphere import (_build_eps_medium, _build_eps_particle, _count_faces,
         _resolve_materials_list, _resolve_rip)
 from .rod import _resolve_rod_mesh
-from .core_shell_sphere import _normalize_shells, _build_inout_table
+from .core_shell_sphere import (_normalize_shells, _build_inout_table,
+        _resolve_core_name)
 from ..util import print_info
 
 
@@ -56,8 +57,7 @@ class CoreShellRodBuilder(StructureBuilder):
                 '(set <shell_thickness> or <shells>)')
 
         medium_name = self.cfg_materials.get('medium', 'water')
-        core_name = self.cfg_materials.get('core',
-                self.cfg_materials.get('particle', 'gold'))
+        core_name = _resolve_core_name(self.cfg_struct, self.cfg_materials)
 
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
         eps_medium = _build_eps_medium(medium_name)
