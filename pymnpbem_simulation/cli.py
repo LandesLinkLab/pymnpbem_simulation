@@ -55,6 +55,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print_error('failed to load config: {}'.format(e))
         return 1
 
+    _apply_engine_path(cfg)
+
     if args.fields:
         try:
             cfg = _force_field_pass(cfg)
@@ -200,6 +202,41 @@ def main(argv: Optional[List[str]] = None) -> int:
     print_info('done. results in <{}>'.format(out_dir))
 
     return 0
+
+
+def _apply_engine_path(cfg: Dict[str, Any]) -> None:
+    """Put the engine named by <pymnpbem_path> at the front of sys.path.
+
+    Config files are exec'd well before ``mnpbem`` is first imported (that
+    happens in the structure builders), so prepending here decides which copy
+    of the engine the whole run uses. This exists because an editable install
+    can point somewhere else entirely — the conda env may resolve ``mnpbem``
+    to an older checkout — and the alternative is remembering to export
+    PYTHONPATH on every invocation.
+
+    Accepts ``pymnpbem_path`` or the legacy alias ``mnpbem_path``.
+    """
+    from .util import print_info
+
+    path = cfg.get('compute', {}).get('pymnpbem_path', None)
+
+    if not path:
+        return
+
+    path = os.path.abspath(os.path.expanduser(str(path)))
+
+    if not os.path.isdir(os.path.join(path, 'mnpbem')):
+        raise ValueError(
+            '[error] <pymnpbem_path>=<{}> has no <mnpbem> package inside. '
+            'Point it at the PyMNPBEM repo root. '
+            '(그 안에 mnpbem 패키지가 없습니다 — repo 루트를 지정하세요.)'.format(path))
+
+    if 'mnpbem' in sys.modules:
+        print_info('[warn] mnpbem already imported; <pymnpbem_path> ignored.')
+        return
+
+    sys.path.insert(0, path)
+    print_info('engine: using <{}> (from config pymnpbem_path)'.format(path))
 
 
 def _has_required_inputs(args: argparse.Namespace) -> bool:
