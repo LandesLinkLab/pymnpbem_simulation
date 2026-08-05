@@ -9,15 +9,47 @@ from ..util import print_info
 
 
 def _resolve_rod_mesh(cfg: Dict[str, Any], diameter: float, height: float) -> List[int]:
-    if 'rod_mesh' in cfg:
-        n = list(cfg['rod_mesh'])
-        assert len(n) == 3, '[error] rod_mesh must have 3 elements [nphi, ntheta, nz]'
-        return [int(v) for v in n]
+    """Discretisation counts [nphi, ntheta, nz] handed to trirod.
 
+    Two ways to ask for a mesh:
+
+    1. ``nphi`` / ``ntheta`` / ``nz`` -- SPACINGS, not counts, matching the older
+       MATLAB-based mnpbem_simulation wrapper
+       (sim_utils/geometry_generator.py:_legacy_mesh_to_n_rod)::
+
+           nphi   = max(8, ceil((diameter + 1) * pi / nphi))
+           ntheta = max(6, ceil((diameter + 1) / ntheta))
+           nz     = max(4, ceil((height - diameter + 1) / nz))
+
+       Smaller values give a finer mesh, which is the opposite of what the
+       numbers mean inside trirod. The two wrappers used the same key names for
+       opposite conventions, and carrying a config across silently produced the
+       wrong mesh: nphi = 3 on a 20 x 60 nm rod means 22 azimuthal divisions
+       here but was taken literally as 3 before, giving 12 boundary elements and
+       a singular BEM matrix (MATLAB does the same at that mesh).
+
+    2. ``mesh_density`` -- boundary-element size in nm, the same meaning it has
+       for the cube and sphere builders.
+
+    To match a MATLAB script that passes trirod counts directly, invert the
+    formula: counts [15, 20, 20] on a 20 x 60 nm rod correspond to nphi = 4.4,
+    ntheta = 1.05, nz = 2.05.
+    """
     if 'nphi' in cfg or 'ntheta' in cfg or 'nz' in cfg:
-        nphi = int(cfg.get('nphi', 15))
-        ntheta = int(cfg.get('ntheta', 20))
-        nz = int(cfg.get('nz', 20))
+        nphi_s = float(cfg.get('nphi', 2.0))
+        ntheta_s = float(cfg.get('ntheta', 2.0))
+        nz_s = float(cfg.get('nz', 2.0))
+
+        for name, val in (('nphi', nphi_s), ('ntheta', ntheta_s), ('nz', nz_s)):
+            if val <= 0:
+                raise ValueError(
+                    '[error] <{}> is a spacing and must be > 0, got <{}>. '
+                    'Smaller means finer. '
+                    '({} is a spacing, not a division count.)'.format(name, val, name))
+
+        nphi = max(8, int(np.ceil((diameter + 1.0) * np.pi / nphi_s)))
+        ntheta = max(6, int(np.ceil((diameter + 1.0) / ntheta_s)))
+        nz = max(4, int(np.ceil(max(0.0, height - diameter + 1.0) / nz_s)))
         return [nphi, ntheta, nz]
 
     element_size = float(cfg.get('mesh_density', 2.0))
