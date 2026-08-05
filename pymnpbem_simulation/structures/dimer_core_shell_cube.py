@@ -4,6 +4,7 @@ import numpy as np
 
 from .advanced_monomer_cube import _resolve_n_per_edge
 from .base import StructureBuilder
+from .core_shell_sphere import _resolve_core_name, _resolve_shell_names
 from .sphere import (_build_eps_medium, _build_eps_particle, _count_faces,
         _resolve_materials_list, _resolve_rip)
 from ..util import print_info
@@ -27,8 +28,13 @@ class DimerCoreShellCubeBuilder(StructureBuilder):
         shift = (shell_size + gap) / 2.0
 
         medium_name = self.cfg_materials.get('medium', 'water')
-        core_name = self.cfg_materials.get('core', self.cfg_materials.get('particle', 'gold'))
-        shell_name = self.cfg_materials.get('shell', 'silver')
+        core_name = _resolve_core_name(self.cfg_struct, self.cfg_materials)
+
+        # Shell from `materials = [core, shell]` (the only channel the .py
+        # config route has), falling back to the explicit materials.shell.
+        shell_names = _resolve_shell_names(self.cfg_struct, self.cfg_materials)
+        shell_name = (shell_names[0] if len(shell_names) > 0
+                else self.cfg_materials.get('shell', 'silver'))
 
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
         eps_medium = _build_eps_medium(medium_name)
