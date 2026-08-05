@@ -10,6 +10,19 @@ from ..util import print_info
 
 
 def _cluster_positions(n_spheres: int, spacing: float) -> List[Tuple[float, float]]:
+    """Close-packed layouts, centred on the cluster's centroid.
+
+    N >= 4 is a central sphere plus the first N-1 vertices of a hexagon around
+    it, so every outer sphere touches the centre. (The recipe book used to call
+    N=4 a "2x2 grid" and N=6 "3 bottom, 3 top"; neither matched what is built,
+    and a square would leave the diagonal pairs apart. The text now describes
+    the hexagonal packing.)
+
+    Positions are shifted so the centroid sits at the origin. They previously
+    were not — an N=4 cluster of 30 nm spheres had its centre of mass at
+    (+7.5, +12.9) nm, which silently offsets the structure from any field grid,
+    dipole position or substrate reference built around the origin.
+    """
     dy_60 = spacing * np.sqrt(3.0) / 2.0
 
     hex_positions = []
@@ -34,7 +47,11 @@ def _cluster_positions(n_spheres: int, spacing: float) -> List[Tuple[float, floa
     if n_spheres not in table:
         raise ValueError('[error] <n_spheres> must be 1-7, got <{}>'.format(n_spheres))
 
-    return table[n_spheres]
+    pos = table[n_spheres]
+    cx = sum(p[0] for p in pos) / len(pos)
+    cy = sum(p[1] for p in pos) / len(pos)
+
+    return [(x - cx, y - cy) for x, y in pos]
 
 
 class SphereClusterBuilder(StructureBuilder):
@@ -44,7 +61,20 @@ class SphereClusterBuilder(StructureBuilder):
 
         n_spheres = int(self.cfg_struct.get('n_spheres', 1))
         diameter = float(self.cfg_struct.get('diameter', 50.0))
-        gap = float(self.cfg_struct.get('gap', -0.1))
+        # Surface-to-surface gap. A NEGATIVE gap overlaps the spheres: the
+        # closed surfaces genuinely intersect (at gap = -0.1 nm on d = 30 nm,
+        # 54 of 31808 quadrature points of one sphere fall inside its
+        # neighbour), which leaves the inside/outside assignment of the shared
+        # volume contradictory and the BEM problem ill-posed. gap = 0 touches
+        # without intersecting, so that is the default.
+        gap = float(self.cfg_struct.get('gap', 0.0))
+
+        if gap < 0.0:
+            print_info(
+                '[warn] sphere_cluster gap={} < 0 overlaps the spheres; the '
+                'closed surfaces intersect and the BEM inside/outside '
+                'assignment is undefined. Use gap=0 for contact. '
+                '(구가 실제로 겹칩니다 — 접촉은 gap=0 을 쓰세요.)'.format(gap))
         # <mesh_density> is a boundary-element size in nm, as for cube/rod.
         if 'n_verts' in self.cfg_struct:
             n_verts = int(self.cfg_struct['n_verts'])
