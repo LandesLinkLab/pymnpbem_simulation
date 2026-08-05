@@ -38,6 +38,14 @@ class RodBuilder(StructureBuilder):
         interp = self.cfg_struct.get('interp', 'curv')
         horizontal = bool(self.cfg_struct.get('horizontal', True))
 
+        # MATLAB trirod returns quadrilateral faces (with triangles only at the
+        # cap poles). Splitting every quad into two triangles is a DIFFERENT
+        # discretisation, not a refinement: measured against MATLAB it moves
+        # the transverse cross section by ~10% and the longitudinal one by ~3%
+        # at [15, 20, 20]. Default to the MATLAB mesh; set <triangles: true>
+        # to opt back into the split.
+        triangles = bool(self.cfg_struct.get('triangles', False))
+
         n_mesh = _resolve_rod_mesh(self.cfg_struct, diameter, height)
 
         medium_name = self.cfg_materials.get('medium', 'water')
@@ -48,7 +56,7 @@ class RodBuilder(StructureBuilder):
         eps_particle = _build_eps_particle(particle_name, rip)
         epstab = [eps_medium, eps_particle]
 
-        rod = trirod(diameter, height, n_mesh, triangles = True)
+        rod = trirod(diameter, height, n_mesh, triangles = triangles)
 
         if horizontal:
             rod.rot(90, [0, 1, 0])
