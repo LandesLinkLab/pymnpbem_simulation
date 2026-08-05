@@ -60,6 +60,8 @@ _KEY_TO_SECTION = {
     'roundings': ('structure', 'roundings'),
     'mesh_density': ('structure', 'mesh_density'),
     'rod_mesh': ('structure', 'rod_mesh'),
+    'horizontal': ('structure', 'horizontal'),
+    'triangles': ('structure', 'triangles'),
     'nphi': ('structure', 'nphi'),
     'ntheta': ('structure', 'ntheta'),
     'nz': ('structure', 'nz'),
