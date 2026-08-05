@@ -3,7 +3,8 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 
 from .adaptive_cube_mesh import build_adaptive_cube
-from .advanced_monomer_cube import _resolve_n_per_edge
+from .advanced_monomer_cube import (_resolve_n_per_edge,
+        _resolve_roundings)
 from .base import StructureBuilder
 from .sphere import (_build_eps_medium, _build_eps_particle, _count_faces,
         _resolve_materials_list, _resolve_rip)
@@ -79,24 +80,43 @@ class CoreShellCubeBuilder(StructureBuilder):
         edge_profile_kw = _resolve_edge_profile_kwargs(self.cfg_struct)
         use_adaptive = face_densities is not None or edge_profile_kw is not None
 
-        cum_size = core_size
-        if use_adaptive:
-            particles = [build_adaptive_cube(
-                size = core_size, n_default = n_per_edge,
-                face_densities = face_densities, e = e,
-                edge_profile_kwargs = edge_profile_kw, interp = interp)]
-        else:
-            particles = [tricube(n_per_edge, core_size, e = e)]
+        # Cumulative outer edge of every layer, inner -> outer.
+        sizes = [core_size]
         for sh in shells:
-            cum_size = cum_size + 2.0 * float(sh['thickness'])
-            n_edge = int(sh.get('n_per_edge', sh['n']))
+            sizes.append(sizes[-1] + 2.0 * float(sh['thickness']))
+
+        n_layers = len(sizes)
+
+        # Per-layer mesh: <mesh_density> is an element size, so each layer must
+        # be divided against ITS OWN edge. Sizing every layer off the outermost
+        # cube (the previous behaviour) over-meshed the core — for core 30 /
+        # outer 40 at mesh_density 2.5 the core came out with 1350 faces
+        # instead of 726, a 1.86x excess. advanced_monomer_cube already does
+        # the per-layer conversion; this matches it.
+        n_per_edges = []
+        for size in sizes:
+            n_per_edges.append(
+                    _resolve_n_per_edge(self.cfg_struct, 1, edge_override = size)[0])
+
+        # Per-layer rounding, honouring <roundings> like the advanced builders.
+        # Previously only the single <rounding>/<e> was applied to every layer.
+        roundings = _resolve_roundings(self.cfg_struct, n_layers) \
+                if 'roundings' in self.cfg_struct else [e] * n_layers
+
+        particles = []
+        for i, (size, n_edge, rnd) in enumerate(zip(sizes, n_per_edges, roundings)):
+
+            # An explicit per-shell <n> still wins over the density conversion.
+            if i > 0 and shells[i - 1].get('n_explicit', False):
+                n_edge = int(shells[i - 1]['n'])
+
             if use_adaptive:
                 particles.append(build_adaptive_cube(
-                    size = cum_size, n_default = n_edge,
-                    face_densities = face_densities, e = e,
+                    size = size, n_default = n_edge,
+                    face_densities = face_densities, e = rnd,
                     edge_profile_kwargs = edge_profile_kw, interp = interp))
             else:
-                particles.append(tricube(n_edge, cum_size, e = e))
+                particles.append(tricube(n_edge, size, e = rnd))
 
         inout = _build_inout_table(len(shells))
 
