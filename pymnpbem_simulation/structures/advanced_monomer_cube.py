@@ -124,7 +124,7 @@ class AdvancedMonomerCubeBuilder(StructureBuilder):
 
         medium_name = self.cfg_materials.get('medium', 'water')
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
-        eps_medium = _build_eps_medium(medium_name)
+        eps_medium = _build_eps_medium(medium_name, rip)
         eps_layers = [_build_eps_particle(name, rip) for name in materials]
         epstab = [eps_medium] + eps_layers
 

@@ -213,7 +213,7 @@ class ConnectedDimerCubeBuilder(StructureBuilder):
         particle_name = self.cfg_materials.get('particle', 'gold')
 
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
-        eps_medium = _build_eps_medium(medium_name)
+        eps_medium = _build_eps_medium(medium_name, rip)
         eps_particle = _build_eps_particle(particle_name, rip)
         epstab = [eps_medium, eps_particle]
 
@@ -313,7 +313,7 @@ class ConnectedDimerCubeBuilder(StructureBuilder):
 
         medium_name = self.cfg_materials.get('medium', 'water')
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
-        eps_medium = _build_eps_medium(medium_name)
+        eps_medium = _build_eps_medium(medium_name, rip)
         eps_core = _build_eps_particle(materials[0], rip)
         eps_shell = _build_eps_particle(materials[1], rip)
         epstab = [eps_medium, eps_core, eps_shell]

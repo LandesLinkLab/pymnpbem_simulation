@@ -64,7 +64,7 @@ class CoreShellRodBuilder(StructureBuilder):
         core_name = _resolve_core_name(self.cfg_struct, self.cfg_materials)
 
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
-        eps_medium = _build_eps_medium(medium_name)
+        eps_medium = _build_eps_medium(medium_name, rip)
         eps_core = _build_eps_particle(core_name, rip)
 
         epstab = [eps_medium, eps_core]

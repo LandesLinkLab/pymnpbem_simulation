@@ -85,7 +85,10 @@ class WithSubstrateBuilder(StructureBuilder):
         p, epstab_base, nfaces_base = build_structure(cfg_base, self.cfg_materials)
 
         # Construct the substrate dielectric
-        eps_sub = _build_eps_substrate(eps_sub_spec)
+        from .sphere import _resolve_rip
+
+        eps_sub = _build_eps_substrate(
+                eps_sub_spec, _resolve_rip(self.cfg_struct, self.cfg_materials))
 
         # Append substrate eps to the table; particle inout assignments stay
         # valid (they reference indices 1, 2 = medium, particle).
@@ -158,8 +161,15 @@ class WithSubstrateBuilder(StructureBuilder):
         return p, epstab, nfaces
 
 
-def _build_eps_substrate(spec: Any) -> Any:
+def _build_eps_substrate(spec: Any, custom: Any = None) -> Any:
     from mnpbem.materials import EpsConst, EpsTable
+
+    from .sphere import _eps_from_custom
+
+    # A dielectric function resolved by material_descriptor.py (a user .py
+    # material) arrives as a callable and is already what mnpbem wants.
+    if callable(spec):
+        return spec
 
     if isinstance(spec, (int, float)):
         return EpsConst(float(spec))
@@ -170,11 +180,23 @@ def _build_eps_substrate(spec: Any) -> Any:
             return EpsConst(_SUBSTRATE_PRESETS[spec_l])
         if spec.endswith('.dat'):
             return EpsTable(spec)
+
+        # Same reason as the medium builder: the GUI offers one material list
+        # for every slot, so a registered material must resolve here too.
+        # config._resolve_substrate_eps() handles the constant/table cases but
+        # leaves .py-module materials as a bare name.
+        eps_custom = _eps_from_custom(spec, custom)
+        if eps_custom is not None:
+            return eps_custom
+
         try:
             return EpsConst(float(spec))
         except ValueError:
             raise ValueError(
-                '[error] Unsupported <substrate.eps>=<{}>!'.format(spec))
+                '[error] Unsupported <substrate.eps>=<{}>! Use a preset ({}), a '
+                'refractive index, a .dat table, or a material registered in '
+                '<materials.refractive_index_paths>.'.format(
+                        spec, ', '.join(sorted(_SUBSTRATE_PRESETS))))
 
     raise ValueError(
         '[error] Unsupported <substrate.eps> type: <{}>!'.format(type(spec).__name__))

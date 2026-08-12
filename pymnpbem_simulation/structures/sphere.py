@@ -153,7 +153,7 @@ class SphereBuilder(StructureBuilder):
         particle_name = self.cfg_materials.get('particle', 'gold')
 
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
-        eps_medium = _build_eps_medium(medium_name)
+        eps_medium = _build_eps_medium(medium_name, rip)
         eps_particle = _build_eps_particle(particle_name, rip)
         epstab = [eps_medium, eps_particle]
 
@@ -169,7 +169,7 @@ class SphereBuilder(StructureBuilder):
         return p, epstab, nfaces
 
 
-def _build_eps_medium(name: str) -> Any:
+def _build_eps_medium(name: str, custom: Any = None) -> Any:
     from mnpbem.materials import EpsConst, EpsTable
 
     name_l = name.lower()
@@ -180,7 +180,23 @@ def _build_eps_medium(name: str) -> Any:
     if name.endswith('.dat'):
         return EpsTable(name)
 
-    return EpsConst(float(name))
+    # An embedding medium can be any registered material, not just the handful
+    # of built-in names: the GUI offers the same material list for environment,
+    # substrate and particle, and a config can name a custom dielectric here as
+    # readily as on the particle. Without this the name fell through to
+    # float(name) and surfaced as "could not convert string to float: 'gold'".
+    eps_custom = _eps_from_custom(name, custom)
+    if eps_custom is not None:
+        return eps_custom
+
+    try:
+        return EpsConst(float(name))
+    except ValueError:
+        raise ValueError(
+                '[error] Unsupported <medium> = <{}>! Use a built-in name ({}), '
+                'a refractive index, a .dat table, or a material registered in '
+                '<materials.refractive_index_paths>.'.format(
+                        name, ', '.join(sorted(_MATERIAL_DEFAULTS))))
 
 
 def _build_eps_particle(name: str, custom: Any = None) -> Any:
@@ -197,6 +213,26 @@ def _build_eps_particle(name: str, custom: Any = None) -> Any:
     if name.endswith('.dat'):
         return EpsTable(name)
 
+    eps_custom = _eps_from_custom(name, custom)
+    if eps_custom is not None:
+        return eps_custom
+
+    raise ValueError('[error] Unsupported <particle> = <{}>!'.format(name))
+
+
+def _eps_from_custom(name: str, custom: Any = None) -> Any:
+    """Resolve <name> against refractive_index_paths, or None if absent.
+
+    Shared by the medium and particle builders so a material registered once is
+    usable wherever a material name is accepted.
+    """
+    from mnpbem.materials import EpsConst, EpsTable
+
+    if not isinstance(custom, dict) or not custom:
+        return None
+
+    name_l = name.lower()
+
     # custom material from refractive_index_paths (e.g. agcl, ito).
     # Supports both descriptor dicts and runtime-resolved values:
     #   {'agcl': {'type': 'constant', 'epsilon': 2.02}} -> EpsConst(2.02)
@@ -204,54 +240,54 @@ def _build_eps_particle(name: str, custom: Any = None) -> Any:
     #   {'foo': 'foo.dat'}                               -> EpsTable('foo.dat')
     #   {'foo': 2.02}                                    -> EpsConst(2.02)
     #   {'foo': <callable>}                              -> <callable>
-    if isinstance(custom, dict) and custom:
-        cmap = {str(k).lower(): v for k, v in custom.items()}
-        if name_l in cmap:
-            m = cmap[name_l]
+    cmap = {str(k).lower(): v for k, v in custom.items()}
+    if name_l not in cmap:
+        return None
 
-            # Runtime value resolved by material_descriptor.py.
-            if callable(m):
-                return m
+    m = cmap[name_l]
 
-            if isinstance(m, (int, float)):
-                return EpsConst(float(m))
+    # Runtime value resolved by material_descriptor.py.
+    if callable(m):
+        return m
 
-            if isinstance(m, str):
-                if m.endswith('.dat'):
-                    return EpsTable(m)
-                try:
-                    return EpsConst(float(m))
-                except ValueError:
-                    return EpsTable(m)
-            if isinstance(m, dict):
-                mtype = str(m.get('type', 'constant')).lower()
-                if mtype == 'constant':
-                    if 'epsilon' not in m:
-                        raise ValueError('[error] Missing <epsilon> for custom '
-                                         'material <{}>!'.format(name))
-                    return EpsConst(float(m['epsilon']))
+    if isinstance(m, (int, float)):
+        return EpsConst(float(m))
 
-                if mtype == 'table':
-                    path = m.get('path', m.get('file', name))
-                    return EpsTable(str(path))
+    if isinstance(m, str):
+        if m.endswith('.dat'):
+            return EpsTable(m)
+        try:
+            return EpsConst(float(m))
+        except ValueError:
+            return EpsTable(m)
 
-                if mtype == 'python_module':
-                    # If resolver is bypassed, allow direct callable injection.
-                    fn = m.get('callable', None)
-                    if callable(fn):
-                        return fn
-                    raise ValueError('[error] Unsupported unresolved '
-                                     '<python_module> descriptor for material '
-                                     '<{}>; run descriptor resolver first!'.format(name))
+    if isinstance(m, dict):
+        mtype = str(m.get('type', 'constant')).lower()
+        if mtype == 'constant':
+            if 'epsilon' not in m:
+                raise ValueError('[error] Missing <epsilon> for custom '
+                                 'material <{}>!'.format(name))
+            return EpsConst(float(m['epsilon']))
 
-                # Legacy path-like dicts without explicit type.
-                if 'path' in m or 'file' in m:
-                    return EpsTable(str(m.get('path', m.get('file'))))
+        if mtype == 'table':
+            path = m.get('path', m.get('file', name))
+            return EpsTable(str(path))
 
-            raise ValueError('[error] Unsupported custom material spec for '
-                             '<{}>: <{}>!'.format(name, type(m).__name__))
+        if mtype == 'python_module':
+            # If resolver is bypassed, allow direct callable injection.
+            fn = m.get('callable', None)
+            if callable(fn):
+                return fn
+            raise ValueError('[error] Unsupported unresolved '
+                             '<python_module> descriptor for material '
+                             '<{}>; run descriptor resolver first!'.format(name))
 
-    raise ValueError('[error] Unsupported <particle> = <{}>!'.format(name))
+        # Legacy path-like dicts without explicit type.
+        if 'path' in m or 'file' in m:
+            return EpsTable(str(m.get('path', m.get('file'))))
+
+    raise ValueError('[error] Unsupported custom material spec for '
+                     '<{}>: <{}>!'.format(name, type(m).__name__))
 
 
 def _resolve_materials_list(cfg_struct: Any, cfg_materials: Any) -> list:

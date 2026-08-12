@@ -49,7 +49,7 @@ class CubeBuilder(StructureBuilder):
         particle_name = self.cfg_materials.get('particle', 'gold')
 
         rip = _resolve_rip(self.cfg_struct, self.cfg_materials)
-        eps_medium = _build_eps_medium(medium_name)
+        eps_medium = _build_eps_medium(medium_name, rip)
         eps_particle = _build_eps_particle(particle_name, rip)
         epstab = [eps_medium, eps_particle]
 
