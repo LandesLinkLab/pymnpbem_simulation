@@ -147,6 +147,19 @@ class FieldCalculator(SimulationRunner):
         self.fmm = bool(sim_cfg.get('fmm', False))
         self.fmm_eps = float(sim_cfg.get('fmm_eps', 1e-12))
 
+        # A BEM sigma only describes the surface charges, so the field it
+        # generates is the scattered one and decays to zero far from the
+        # particle rather than to the incident amplitude. MATLAB @meshfield
+        # behaves the same way, and its near-field demos add the incident term
+        # back in the calling script:
+        #   e = emesh( sig ) + emesh( exc.field( emesh.pt, enei ) )
+        # (Demo/planewave/ret/demospecret10.m, demospecstat13.m, dipole demos,
+        # help/bem_ug_efield.m). The default here matches @meshfield -- the
+        # scattered field -- so simulation.field_total = true is how a caller
+        # asks for the demos' total field. Either way the result records which
+        # one it is under 'field_kind'.
+        self.field_total = bool(sim_cfg.get('field_total', False))
+
         self.grid_x, self.grid_y, self.grid_z, self.grid_points = self._build_grid()
 
         # When the cfg requests multi-GPU pooling for the FieldCalculator
@@ -164,6 +177,7 @@ class FieldCalculator(SimulationRunner):
         # objects each wavelength is expensive and can trigger allocator
         # thrash in substrate runs.
         self._meshfield_cache: Optional[Any] = None
+        self._field_exc_cache: Optional[Any] = None
 
     def _maybe_seed_vram_share_env_from_cfg(self) -> None:
         """Cache a deferred env snapshot derived from cfg so
@@ -705,6 +719,35 @@ class FieldCalculator(SimulationRunner):
     def __call__(self, sig: Any) -> Box:
         return self.evaluate(sig)
 
+    def _get_field_excitation(self) -> Any:
+        # Cached: a layer-aware excitation is expensive to rebuild, and the
+        # incident field is needed once per wavelength.
+        if self._field_exc_cache is None:
+            self._field_exc_cache = self.build_excitation()
+        return self._field_exc_cache
+
+    def _incident_field(self,
+            enei: float) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """Unscattered field on the grid, or (None, None) if unavailable.
+
+        ``exc.field()`` returns zero at points whose medium is not the
+        excitation medium, so grid points inside the particle keep the
+        surface-charge field alone -- the same split MATLAB relies on. The
+        MeshField call takes the ``sig.val['e']`` shortcut (no Green function),
+        so this only costs one plane-wave evaluation per wavelength.
+        """
+        exc = self._get_field_excitation()
+        field_fn = getattr(exc, 'field', None)
+        if field_fn is None:
+            return None, None
+
+        mf = self._get_meshfield()
+        inc = field_fn(mf.pt, float(enei))
+        e_inc, h_inc = mf(inc, inout = self.inout)
+
+        return (self._flatten_field(e_inc),
+                self._flatten_field(h_inc) if h_inc is not None else None)
+
     def run(self,
             enei: np.ndarray) -> Dict[str, Any]:
 
@@ -727,6 +770,10 @@ class FieldCalculator(SimulationRunner):
         bem = None
         exc = None
 
+        # Downgraded to 'scattered' below if the excitation cannot supply an
+        # incident field, so the label always describes what was returned.
+        field_kind = 'total' if self.field_total else 'scattered'
+
         for i in range(n_wl):
             sig = self._sig_from_cache_or_solve(float(enei[i]), bem, exc)
             # If we had to fall back to a BEM solve, remember the solver
@@ -736,11 +783,33 @@ class FieldCalculator(SimulationRunner):
 
             field_res = self.evaluate(sig)
 
+            e_inc = None
+            h_inc = None
+            if field_kind == 'total':
+                try:
+                    e_inc, h_inc = self._incident_field(float(enei[i]))
+                except Exception as exc_err:
+                    e_inc, h_inc = None, None
+                    print_info(
+                            '[warn] incident field unavailable ({}: {}) — returning '
+                            'the scattered field only'.format(
+                                    type(exc_err).__name__, exc_err))
+
+                if e_inc is None:
+                    # Excitations without a field() method (EELS) have no
+                    # incident term to add; say so instead of labelling the
+                    # result as a total field.
+                    field_kind = 'scattered'
+
             e_arr = self._broadcast_pol(field_res.e, n_pol)
+            if e_inc is not None:
+                e_arr = e_arr + self._broadcast_pol(e_inc, n_pol)
             e_all[i] = e_arr
 
             if field_res.h is not None:
                 h_arr = self._broadcast_pol(field_res.h, n_pol)
+                if h_inc is not None:
+                    h_arr = h_arr + self._broadcast_pol(h_inc, n_pol)
                 if not first_h_set:
                     h_all = np.zeros((n_wl, n_pts, 3, n_pol), dtype = np.complex128)
                     first_h_set = True
@@ -749,6 +818,9 @@ class FieldCalculator(SimulationRunner):
             if (i + 1) % 5 == 0 or (i + 1) == n_wl:
                 print_info('  wl {}/{}: enei={:.2f} nm'.format(i + 1, n_wl, enei[i]))
 
+        print_info('field: returning the {} field (simulation.field_total={})'.format(
+                field_kind, self.field_total))
+
         out = {
                 'wavelength': enei,
                 'pos': self.grid_points,
@@ -756,10 +828,12 @@ class FieldCalculator(SimulationRunner):
                 'h': h_all,
                 'grid_shape': self.grid_x.shape,
                 'n_pol': n_pol,
-                'inout': self.inout}
+                'inout': self.inout,
+                'field_kind': field_kind}
 
         # Drop heavy caches eagerly at end of run.
         self._meshfield_cache = None
+        self._field_exc_cache = None
 
         return out
 
