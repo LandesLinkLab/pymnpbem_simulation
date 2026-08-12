@@ -99,6 +99,9 @@ Priority:
 | EELS + retarded + layer | MATLAB | `eels_ret_layer.py` | OK | - |
 | Nonlocal permittivity | MATLAB | `with_nonlocal` wrapper | partial | M |
 | Field-calculation grid | MATLAB | `field_calculator.py` + `grid_builder.py` | OK | - |
+| Scattered field on grid (`emesh(sig)`) | MATLAB `@meshfield` | `field_calculator.py` (default) | OK | - |
+| Total field on grid (`emesh(sig) + emesh(exc.field(pt))`) | MATLAB demos, `help/bem_ug_efield.m` | `simulation.field_total = true` | OK since 2026-08-12 | - |
+| `exc.field()` at ComPoint positions | MATLAB (compoint `inout` is n x 1) | `planewave_ret.py` | fixed 2026-08-12 (was IndexError) | - |
 
 ## 4. Structures (Geometry Builders)
 

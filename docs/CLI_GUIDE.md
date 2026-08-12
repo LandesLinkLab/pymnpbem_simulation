@@ -77,6 +77,13 @@ args = {
     'relcutoff': 3,
     'calculate_cross_sections': True,
     'calculate_fields': False,
+    # Field runs return the scattered field by default, matching MATLAB
+    # @meshfield: emesh(sig) is the surface-charge field, so it decays to zero
+    # far from the particle instead of to |E0|^2. Set True for the total field
+    # the MATLAB near-field demos plot, i.e. emesh(sig) + emesh(exc.field(...)).
+    # The result dict and field.json record which one was produced under
+    # 'field_kind'.
+    'field_total': False,
 
     'compute': {
         'use_parallel': True,
