@@ -1,9 +1,6 @@
 import os
-
 from typing import Any, Dict
-
 import numpy as np
-
 from ..util import ensure_dir, save_json, now_str, print_info
 
 
@@ -101,6 +98,10 @@ def save_field(out_dir: str,
             'n_points': int(pos.shape[0]),
             'n_pol': int(result.get('n_pol', 1)),
             'inout': int(result.get('inout', 2)),
+            # 'total' includes the incident field, 'scattered' is the
+            # surface-charge field alone. Files written before this key existed
+            # hold scattered fields.
+            'field_kind': str(result.get('field_kind', 'unknown')),
             'wall_s': float(result.get('wall_s', 0.0)),
             'wall_min': float(result.get('wall_s', 0.0)) / 60.0,
             'warmup_s': float(result.get('warmup_s', 0.0)),
