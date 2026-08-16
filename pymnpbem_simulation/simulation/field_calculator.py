@@ -445,7 +445,11 @@ class FieldCalculator(SimulationRunner):
     def _make_meshfield(self) -> Any:
         from mnpbem.simulation import MeshField
 
-        sim_type = self.cfg['simulation'].get('type', 'ret')
+        # MeshField wants the bare kind, not the runner name: 'stat_layer' or
+        # 'ret_iter' would be read as retarded and quietly build the wrong
+        # Green function.
+        sim_type = 'stat' if str(
+                self.cfg['simulation'].get('type', 'ret')).startswith('stat') else 'ret'
 
         return MeshField(
                 self.p,
@@ -478,7 +482,9 @@ class FieldCalculator(SimulationRunner):
         """
         from mnpbem.simulation import MeshField
 
-        sim_type = self.cfg['simulation'].get('type', 'ret')
+        # Bare kind, same reason as _make_meshfield().
+        sim_type = 'stat' if str(
+                self.cfg['simulation'].get('type', 'ret')).startswith('stat') else 'ret'
 
         return MeshField(
                 self.p,
