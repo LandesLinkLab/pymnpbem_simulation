@@ -172,6 +172,11 @@ class SphereBuilder(StructureBuilder):
 def _build_eps_medium(name: str, custom: Any = None) -> Any:
     from mnpbem.materials import EpsConst, EpsTable
 
+    if name is None or not str(name).strip():
+        raise ValueError(
+                '[error] No <medium> material set — give <materials.medium> a '
+                'built-in name, a refractive index or a .dat table.')
+
     name_l = name.lower()
 
     if name_l in _MATERIAL_DEFAULTS:
@@ -201,6 +206,13 @@ def _build_eps_medium(name: str, custom: Any = None) -> Any:
 
 def _build_eps_particle(name: str, custom: Any = None) -> Any:
     from mnpbem.materials import EpsConst, EpsTable, EpsDrude
+
+    # A missing material used to surface as AttributeError on None.lower() from
+    # somewhere deep in a builder; say which key is unset instead.
+    if name is None or not str(name).strip():
+        raise ValueError(
+                '[error] No <particle> material set — give '
+                '<materials.particle> a name, a refractive index or a .dat table.')
 
     name_l = name.lower()
 
