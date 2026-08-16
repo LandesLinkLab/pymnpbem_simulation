@@ -109,12 +109,23 @@ class WithSubstrateBuilder(StructureBuilder):
             raise RuntimeError(
                 '[error] WithSubstrateBuilder: cannot read particle z positions: {}'.format(e))
 
-        substrate_z = zmin - gap
-
         try:
             z_centroid = float(_get_particle_pos(p)[:, 2].min())
         except Exception:
             z_centroid = float('nan')
+
+        # Curved-element interpolation puts collocation points on the true
+        # surface, so on a fine mesh the lowest centroid can sit *below* the
+        # lowest vertex. Referencing the vertices alone then buried a face in
+        # the substrate: BEMStatLayer asserts ("p2 must be in upper medium")
+        # and the retarded solver quietly treats that face as substrate-side.
+        # Reference whichever is lower so every collocation point clears the
+        # interface by at least <gap>.
+        z_ref = zmin
+        if np.isfinite(z_centroid):
+            z_ref = min(zmin, z_centroid)
+
+        substrate_z = z_ref - gap
 
         # Build the LayerStructure: top layer = medium, bottom layer = substrate.
         layer = LayerStructure(epstab, [medium_idx, sub_idx], [substrate_z])
@@ -170,6 +181,12 @@ def _build_eps_substrate(spec: Any, custom: Any = None) -> Any:
     # material) arrives as a callable and is already what mnpbem wants.
     if callable(spec):
         return spec
+
+    if spec is None or (isinstance(spec, str) and not spec.strip()):
+        raise ValueError(
+                '[error] No <substrate> material set — give '
+                '<materials.substrate.material> a preset name, a refractive '
+                'index or a .dat table.')
 
     if isinstance(spec, (int, float)):
         return EpsConst(float(spec))
